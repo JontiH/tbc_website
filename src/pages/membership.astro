@@ -1,0 +1,306 @@
+---
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+const currentPath = "/membership";
+
+const commitments = [
+  { label: "Bee yard work", hours: "~25 hrs", desc: "Hands-on hive inspections, feeding, treatments, and harvesting across our four locations." },
+  { label: "Honey harvesting", hours: "Seasonal", desc: "Participate in the annual honey harvest — one of the most rewarding parts of membership." },
+  { label: "Equipment building & maintenance", hours: "Variable", desc: "Help build and repair hive boxes, frames, and other equipment." },
+  { label: "Education & community events", hours: "Variable", desc: "Represent TBC at public events, Ontario Science Centre, and community outreach." },
+  { label: "Committee work", hours: "Variable", desc: "Serve on TBC committees: governance, equipment, education, and more." },
+  { label: "Monthly meetings", hours: "Min. 6/year", desc: "Attend monthly meetings to stay connected with the collective and participate in decisions." },
+];
+
+const perks = [
+  "Hands-on experience working with live bee colonies",
+  "A share of the annual honey harvest",
+  "Workshops using hive products — candles, soap, honey vinegar, and more",
+  "Access to the members area including hive notes and data",
+  "Monthly meetings with fellow beekeeping enthusiasts",
+  "Training from experienced beekeepers",
+];
+
+const timeline = [
+  { month: "Year-round", event: "Applications accepted" },
+  { month: "End of January", event: "Application cut-off for the current beekeeping year" },
+  { month: "Early March", event: "Successful applicants invited to information session" },
+  { month: "March / April", event: "New members accepted and welcomed" },
+  { month: "April / May", event: "Beekeeping season begins (weather dependent)" },
+];
+---
+
+<Base
+  title="Membership"
+  description="Join the Toronto Beekeepers Collective. Learn about membership requirements, what's involved, and how to apply."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Membership</h1>
+      <p>Join a community of passionate urban beekeepers. No experience required.</p>
+    </div>
+  </div>
+
+  <!-- Intro -->
+  <section class="section">
+    <div class="container">
+      <div class="intro-grid">
+        <div>
+          <h2>How do I become a member?</h2>
+          <p style="margin-top: 0.75rem;">
+            We accept applications year-round, with a cut-off at the end of January for the upcoming beekeeping year.
+            New members are accepted once a year in March/April, ahead of the season starting in April or May.
+          </p>
+          <p>
+            We look for a good fit: Do you have the time? Are you flexible? Do you enjoy working collectively?
+            Are you available during summer for hands-on bee yard and harvesting work? Can you participate in
+            year-round educational events and committee work?
+          </p>
+          <p>
+            If you meet our criteria, we will reach out by early March to invite you to an information session —
+            a chance for us to meet, share what's involved, answer questions, and determine if TBC is the right fit.
+          </p>
+          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+            <a
+              href="mailto:torontobeekeeperscollective@gmail.com?subject=TBC Membership Application"
+              class="btn btn-primary"
+            >
+              Send Your Application
+            </a>
+            <a href="mailto:torontobeekeeperscollective@gmail.com" class="btn btn-outline-dark">
+              Ask a Question
+            </a>
+          </div>
+          <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--charcoal-mid);">
+            Email your application and any questions to
+            <a href="mailto:torontobeekeeperscollective@gmail.com">torontobeekeeperscollective@gmail.com</a>
+          </p>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-card card">
+          <h3 style="margin-bottom: 1.25rem; color: var(--amber-dark);">Application Timeline</h3>
+          <div class="app-timeline">
+            {timeline.map(item => (
+              <div class="app-step">
+                <div class="app-step-dot"></div>
+                <div>
+                  <div class="app-step-date">{item.month}</div>
+                  <div class="app-step-event">{item.event}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- What's involved -->
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-header">
+        <h2>What's Involved</h2>
+        <p>
+          Members commit to at least <strong>60 hours per year</strong>. Here's how that time is typically spent.
+        </p>
+      </div>
+      <div class="commitment-grid">
+        {commitments.map(c => (
+          <div class="card commitment-card">
+            <div class="commitment-header">
+              <h4>{c.label}</h4>
+              <span class="badge badge-mid">{c.hours}</span>
+            </div>
+            <p style="color: var(--charcoal-mid); font-size: 0.9rem; margin-bottom: 0;">{c.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- What you get -->
+  <section class="section">
+    <div class="container">
+      <div class="perks-grid">
+        <div>
+          <h2>What You Get</h2>
+          <p style="margin-top: 0.75rem; margin-bottom: 1.5rem; color: var(--charcoal-mid);">
+            In return for your time, TBC membership comes with some genuinely sweet perks.
+          </p>
+          <ul class="perks-list">
+            {perks.map(perk => (
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{perk}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="perks-aside">
+          <div class="important-box">
+            <h4>Important to know</h4>
+            <p>
+              TBC has a <strong>limited number of membership spots</strong>. Each year, the number of new spots
+              depends on vacant seats and the number of hives we manage.
+            </p>
+            <p style="margin-bottom: 0;">
+              We accept new members once a year and space is limited. We encourage you to apply early and
+              reach out with any questions.
+            </p>
+          </div>
+          <div class="card" style="margin-top: 1.25rem; text-align: center;">
+            <p style="font-size: 0.9rem; color: var(--charcoal-mid); margin-bottom: 1rem;">Ready to apply?</p>
+            <a
+              href="mailto:torontobeekeeperscollective@gmail.com?subject=TBC Membership Application"
+              class="btn btn-primary"
+            >
+              Apply Now
+            </a>
+            <p style="font-size: 0.8rem; color: var(--charcoal-mid); margin-top: 0.75rem; margin-bottom: 0;">
+              Annual fee applies — covers tools, materials, equipment, and instruction.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<style>
+  .intro-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .app-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+    padding-left: 1.5rem;
+  }
+
+  .app-timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: var(--amber-light);
+  }
+
+  .app-step {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    padding-bottom: 1.1rem;
+    position: relative;
+  }
+
+  .app-step:last-child { padding-bottom: 0; }
+
+  .app-step-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--amber);
+    border: 2px solid var(--white);
+    box-shadow: 0 0 0 2px var(--amber);
+    flex-shrink: 0;
+    margin-left: -1.5rem;
+    margin-top: 3px;
+  }
+
+  .app-step-date {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--amber-dark);
+    margin-bottom: 0.1rem;
+  }
+
+  .app-step-event {
+    font-size: 0.92rem;
+    color: var(--charcoal);
+  }
+
+  .commitment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .commitment-card { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .commitment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .commitment-header h4 { font-size: 1rem; }
+
+  .perks-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .perks-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .perks-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .perks-list li svg {
+    color: var(--status-good);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .important-box {
+    background: var(--amber-light);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+  }
+
+  .important-box h4 {
+    color: var(--amber-dark);
+    margin-bottom: 0.6rem;
+  }
+
+  .important-box p {
+    font-size: 0.92rem;
+    color: var(--charcoal);
+  }
+
+  @media (max-width: 720px) {
+    .intro-grid  { grid-template-columns: 1fr; }
+    .perks-grid  { grid-template-columns: 1fr; }
+  }
+</style>

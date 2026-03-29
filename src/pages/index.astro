@@ -1,0 +1,264 @@
+---
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+const currentPath = "/";
+
+const yards = [
+  {
+    name: "Fairmont Royal York Hotel",
+    description: "Rooftop hives above one of Toronto's most iconic hotels, established in 2008. Our bees forage across Toronto's waterfront and downtown core.",
+    since: "2008",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="1"/><path d="M8 9V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4"/><line x1="12" y1="13" x2="12" y2="17"/></svg>`,
+  },
+  {
+    name: "Downsview Park",
+    description: "A specially designed hexagonal beeyard nestled among sumach trees at Allen Road and Sheppard, part of our long partnership with the park.",
+    since: "2010",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  },
+  {
+    name: "Black Creek Community Farm",
+    description: "Ten hives at this vibrant community farm, supporting local food growing and pollination across the northwest of the city.",
+    since: "2013",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z"/><path d="M12 6v6l4 2"/></svg>`,
+  },
+  {
+    name: "Ontario Science Centre",
+    description: "Reaffirming our commitment to accessible bee education in Toronto's east end, where we also host public meet-and-greet events.",
+    since: "2016",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`,
+  },
+];
+
+const highlights = [
+  { stat: "25+", label: "Years of urban beekeeping" },
+  { stat: "4",   label: "Active bee yards in Toronto" },
+  { stat: "~50", label: "Dedicated members" },
+  { stat: "60+", label: "Volunteer hours per member per year" },
+];
+---
+
+<Base
+  title="Home"
+  description="Toronto Beekeepers Collective — Urban beekeeping, public education, and community since 2002."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <span class="hero-eyebrow">Toronto since 2002</span>
+        <h1>Urban Beekeeping,<br />Community First</h1>
+        <p>
+          The Toronto Beekeepers Collective cares for honeybee hives across the city,
+          educates the public about pollinators, and welcomes passionate people to learn
+          the craft together.
+        </p>
+        <div class="hero-actions">
+          <a href="/membership" class="btn btn-primary">Join the TBC</a>
+          <a href="/about" class="btn btn-outline">Learn More</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats bar -->
+  <div style="background: var(--amber); color: var(--white);">
+    <div class="container">
+      <div class="stats-bar">
+        {highlights.map(h => (
+          <div class="stat-item">
+            <div class="stat-number">{h.stat}</div>
+            <div class="stat-label">{h.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- What is TBC -->
+  <section class="section">
+    <div class="container">
+      <div class="two-col">
+        <div>
+          <div class="hex-accent">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h2>What is the TBC?</h2>
+          <p style="margin-top: 0.75rem;">
+            The Toronto Beekeepers Collective is a non-profit collective dedicated to learning
+            about bees and beekeeping, providing public education around pollinators, and
+            advocating on behalf of bees in our city.
+          </p>
+          <p>
+            We are responsible for the care of shared hives throughout the Greater Toronto Area,
+            working with partners at some of Toronto's most beloved institutions. We are a proud
+            member of the <a href="http://www.ontariobee.com/" target="_blank" rel="noopener">Ontario Beekeepers' Association</a>.
+          </p>
+          <div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+            <a href="/about" class="btn btn-outline-dark">Our Story</a>
+            <a href="/about#bee-yards" class="btn btn-outline-dark">Bee Yards</a>
+          </div>
+        </div>
+        <div class="highlights-box">
+          <h3>Members receive</h3>
+          <ul class="check-list">
+            {[
+              "Hands-on beekeeping experience",
+              "A share of the annual honey harvest",
+              "Workshops using hive products (candles, soap, honey)",
+              "Monthly educational meetings",
+              "A community of fellow bee enthusiasts",
+            ].map(item => (
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <a href="/membership" class="btn btn-primary" style="margin-top: 1.25rem;">Apply for Membership</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bee Yards -->
+  <section class="section section-alt" id="yards">
+    <div class="container">
+      <div class="section-header">
+        <h2>Our Bee Yards</h2>
+        <p>We maintain hives at four locations across Toronto, from a downtown hotel rooftop to community farms in the northwest.</p>
+      </div>
+      <div class="card-grid">
+        {yards.map(yard => (
+          <div class="card">
+            <div class="member-card-icon" set:html={yard.icon} />
+            <h3>{yard.name}</h3>
+            <div style="margin-bottom: 0.5rem;">
+              <span class="badge badge-good">Since {yard.since}</span>
+            </div>
+            <p style="color: var(--charcoal-mid); font-size: 0.92rem; margin-bottom: 0;">{yard.description}</p>
+          </div>
+        ))}
+      </div>
+      <p style="margin-top: 1.5rem; color: var(--charcoal-mid); font-size: 0.9rem;">
+        We are also looking to establish a fifth location. If you have a suitable rooftop or natural space,
+        <a href="mailto:info@torontobeekeeping.ca">get in touch</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- Join CTA -->
+  <section class="section cta-section">
+    <div class="container">
+      <div class="cta-inner">
+        <h2>Interested in joining?</h2>
+        <p>
+          We accept new members once a year in March/April. No beekeeping experience is required —
+          just enthusiasm, time, and a love of bees.
+        </p>
+        <div class="cta-actions">
+          <a href="/membership" class="btn btn-primary">See Membership Details</a>
+          <a href="mailto:torontobeekeeperscollective@gmail.com" class="btn btn-outline">Contact Us</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<style>
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    text-align: center;
+  }
+  .stat-item {
+    padding: 1.25rem 1rem;
+    border-right: 1px solid rgba(255,255,255,0.2);
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-number { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+  .stat-label  { font-size: 0.8rem; opacity: 0.9; margin-top: 0.25rem; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: center;
+  }
+
+  .highlights-box {
+    background: var(--amber-light);
+    border-radius: 12px;
+    padding: 2rem;
+    border: 1px solid var(--border);
+  }
+
+  .highlights-box h3 {
+    margin-bottom: 1rem;
+    color: var(--amber-dark);
+  }
+
+  .check-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .check-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .check-list li svg {
+    color: var(--amber-dark);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .cta-section {
+    background: var(--charcoal);
+    color: var(--white);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='52' viewBox='0 0 60 52'%3E%3Cpolygon points='30,2 58,17 58,47 30,62 2,47 2,17' fill='none' stroke='rgba(245,166,35,0.07)' stroke-width='1'/%3E%3C/svg%3E");
+    background-size: 60px 52px;
+  }
+
+  .cta-inner {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .cta-inner h2 { color: var(--white); margin-bottom: 1rem; }
+  .cta-inner p  { color: rgba(255,255,255,0.8); margin-bottom: 2rem; font-size: 1.05rem; }
+
+  .cta-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 720px) {
+    .two-col { grid-template-columns: 1fr; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .stat-item:nth-child(2) { border-right: none; }
+  }
+</style>

@@ -1,0 +1,17 @@
+name = "tbc-sheets-worker"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Worker is deployed separately from the Astro site.
+# Run: cd worker && npx wrangler deploy
+
+# Secrets are set via:
+#   npx wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL
+#   npx wrangler secret put GOOGLE_PRIVATE_KEY
+#   npx wrangler secret put HIVE_SHEET_ID
+#   npx wrangler secret put HIVE_SHEET_RANGE
+#   npx wrangler secret put MEMBERS_SHEET_ID
+#   npx wrangler secret put MEMBERS_SHEET_RANGE
+
+[env.production]
+name = "tbc-sheets-worker"

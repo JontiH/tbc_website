@@ -1,0 +1,274 @@
+---
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+const currentPath = "/about";
+
+const history = [
+  { year: "1985", text: "FoodShare is founded by then-Mayor Eggleton, advancing food security \"From Field to Table\" and promoting urban agriculture across Toronto." },
+  { year: "2000", text: "FoodShare commits to an experiment in urban beekeeping, establishing hives at 200 Eastern Avenue near the Don Valley. Toronto's waterfront provides rich forage." },
+  { year: "2001", text: "Three beehives are established as a joint project with the AfriCan Foodbasket. Training is received through the University of Guelph and Dr. Medhat Nasr, supported by Heifer International." },
+  { year: "2002", text: "FoodShare gifts hives to a group of volunteers — the \"Toronto Beekeeper's Collective\" is born (later renamed Toronto Beekeepers Co-operative, then Collective). Toronto's urban beekeeping legacy begins." },
+  { year: "2004", text: "Membership grows to twelve and hives to eleven. A dedicated FoodShare Urban Agriculture staff person begins working with the group." },
+  { year: "2006", text: "Membership and hives both reach twenty-one. A record honey harvest of over 1,600 pounds is achieved." },
+  { year: "2008", text: "Partnership formed with Evergreen BrickWorks. One hive is gifted to the Fairmont Royal York Hotel, establishing their rooftop apiary — a partnership that receives worldwide attention." },
+  { year: "2010", text: "24 beehives move to Downsview Park (Allen Road and Sheppard) in a specially designed hexagonal beeyard, through a partnership with FoodCycles." },
+  { year: "2011", text: "Membership reaches its highest level: 60 members. TBC is awarded a Green Toronto Award by the City of Toronto in the \"Local Food\" category." },
+  { year: "2012", text: "Honey from the Fairmont Royal York takes 1st place in the Amber Category at the Royal Agricultural Winter Fair." },
+  { year: "2013", text: "A new location is added at Black Creek Community Farm. Ten hives are moved there from Downsview." },
+  { year: "2016", text: "The Co-operative is renamed the Toronto Beekeepers Collective. A new location opens at the Ontario Science Centre, reaffirming our commitment to accessible bee education." },
+];
+
+const yards = [
+  {
+    name: "Fairmont Royal York Hotel",
+    since: "2008",
+    description: "Our rooftop hives sit atop one of Toronto's most storied hotels. The bees forage across the city's waterfront and downtown core, and the honey produced here has won awards at the Royal Agricultural Winter Fair.",
+    note: "Rooftop apiary · Downtown Toronto",
+  },
+  {
+    name: "Downsview Park",
+    since: "2010",
+    description: "A hexagonally-designed beeyard nestled among sumach trees at Allen Road and Sheppard, developed through a partnership with FoodCycles. Located adjacent to chemical-free outdoor gardens.",
+    note: "North York",
+  },
+  {
+    name: "Black Creek Community Farm",
+    since: "2013",
+    description: "Ten hives at this vibrant community farm in Toronto's northwest support local pollination and food growing. The farm is a natural setting for educational outreach.",
+    note: "Northwest Toronto",
+  },
+  {
+    name: "Ontario Science Centre",
+    since: "2016",
+    description: "Established to bring bee education to Toronto's east end. Members host public meet-and-greet events here during summer, welcoming the public to learn about pollinators up close.",
+    note: "East York",
+  },
+];
+
+const faqs = [
+  {
+    q: "Can I keep bees in my backyard?",
+    a: "Ontario Regulations state that honey bee colonies cannot be placed within 30 metres of a property line separating land on which the hives are placed from land occupied as a dwelling, community centre, public park, or place of public assembly. Hives cannot be located within 10 metres of a highway. See the Ontario Beekeepers Association website for a full overview of beekeeping regulations in Ontario.",
+  },
+  {
+    q: "Where can I buy honey, wax, and beekeeping equipment?",
+    a: "The Ontario Beekeepers Association website has a fairly comprehensive list of suppliers. Visit ontariobee.com/sales-and-services for more information.",
+  },
+  {
+    q: "Can I visit your hives?",
+    a: "We do not usually give tours to the general public. However, if you would like to observe a beehive, the Toronto Botanical Gardens have several hives easily observable from their library. We also host public events at the Ontario Science Centre during summer — check our contact email for dates.",
+  },
+  {
+    q: "Have the TBC's hives been affected by Colony Collapse Disorder?",
+    a: "The TBC can proudly say we have not been materially affected by Colony Collapse Disorder. Urban bees, not yet a part of the global crisis, provide a stable source of bees for the future. Keeping the knowledge of beekeeping alive is important — without healthy bees to cross-pollinate plants, human food production is at risk.",
+  },
+  {
+    q: "Is the TBC a co-operative?",
+    a: "We were previously called the Toronto Beekeepers Co-operative, but renamed ourselves the Collective in 2016 because we do not fit the legal definition of a co-operative and wished to avoid being misleading.",
+  },
+];
+---
+
+<Base
+  title="About Us"
+  description="Learn about the Toronto Beekeepers Collective — our history, our bee yards across Toronto, and our mission of education and advocacy."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>About Us</h1>
+      <p>Urban beekeeping, public education, and community since 2002.</p>
+    </div>
+  </div>
+
+  <!-- Mission -->
+  <section class="section">
+    <div class="container">
+      <div class="mission-grid">
+        <div>
+          <h2>Our Mission</h2>
+          <p style="margin-top: 0.75rem;">
+            The Toronto Beekeepers Collective (TBC) is a collective dedicated to learning about
+            bees and beekeeping, providing public education around bees, involving ourselves in
+            political advocacy on behalf of bees, and taking responsibility for the care of our
+            shared hives throughout the Greater Toronto Area.
+          </p>
+          <p>
+            We are a proud member of the <a href="http://www.ontariobee.com/" target="_blank" rel="noopener">Ontario Beekeepers' Association</a>.
+            For more information, contact us at <a href="mailto:info@torontobeekeeping.ca">info@torontobeekeeping.ca</a>.
+          </p>
+        </div>
+        <div class="mission-stats">
+          <div class="mission-stat">
+            <span class="mission-stat-num">25+</span>
+            <span class="mission-stat-label">Years keeping bees in Toronto</span>
+          </div>
+          <div class="mission-stat">
+            <span class="mission-stat-num">4</span>
+            <span class="mission-stat-label">Active bee yards across the GTA</span>
+          </div>
+          <div class="mission-stat">
+            <span class="mission-stat-num">~50</span>
+            <span class="mission-stat-label">Active members</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section class="section section-alt" id="history">
+    <div class="container">
+      <div class="section-header">
+        <h2>Our History</h2>
+        <p>From a FoodShare experiment in 2000 to a 25-year institution — here's how the TBC came to be.</p>
+      </div>
+      <div class="timeline">
+        {history.map(item => (
+          <div class="timeline-item">
+            <span class="timeline-year">{item.year}</span>
+            <p style="margin-bottom: 0;">{item.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Bee Yards -->
+  <section class="section" id="bee-yards">
+    <div class="container">
+      <div class="section-header">
+        <h2>Bee Yards</h2>
+        <p>
+          We host hives at four locations in Toronto. We are also actively looking to expand —
+          if you have a suitable quiet space with room for 4–8 hives, <a href="mailto:info@torontobeekeeping.ca">contact us</a>.
+        </p>
+      </div>
+      <div class="yards-grid">
+        {yards.map(yard => (
+          <div class="card yard-card">
+            <div class="yard-header">
+              <div>
+                <h3>{yard.name}</h3>
+                <span class="yard-note">{yard.note}</span>
+              </div>
+              <span class="badge badge-good">Est. {yard.since}</span>
+            </div>
+            <p style="color: var(--charcoal-mid); font-size: 0.92rem; margin-bottom: 0;">{yard.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section section-alt" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <h2>Frequently Asked Questions</h2>
+      </div>
+      <div class="faq-list" style="max-width: 780px;">
+        {faqs.map((faq, i) => (
+          <div class="faq-item">
+            <button
+              class="faq-question"
+              aria-expanded="false"
+              aria-controls={`faq-answer-${i}`}
+              id={`faq-btn-${i}`}
+            >
+              {faq.q}
+              <svg class="faq-chevron" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="faq-answer" id={`faq-answer-${i}`} role="region" aria-labelledby={`faq-btn-${i}`}>
+              <p>{faq.a}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>(".faq-question").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      const answerId = btn.getAttribute("aria-controls")!;
+      const answer = document.getElementById(answerId)!;
+
+      btn.setAttribute("aria-expanded", String(!expanded));
+      answer.classList.toggle("open", !expanded);
+    });
+  });
+</script>
+
+<style>
+  .mission-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .mission-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .mission-stat {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mission-stat-num {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--amber-dark);
+    line-height: 1;
+  }
+
+  .mission-stat-label {
+    font-size: 0.88rem;
+    color: var(--charcoal-mid);
+    margin-top: 0.25rem;
+  }
+
+  .yards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .yard-card { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .yard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .yard-header h3 { margin-bottom: 0.2rem; }
+
+  .yard-note {
+    font-size: 0.8rem;
+    color: var(--charcoal-mid);
+    font-weight: 500;
+  }
+
+  @media (max-width: 720px) {
+    .mission-grid { grid-template-columns: 1fr; }
+  }
+</style>

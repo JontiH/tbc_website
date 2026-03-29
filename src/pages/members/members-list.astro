@@ -1,0 +1,176 @@
+---
+import Base from "../../layouts/Base.astro";
+import Nav from "../../components/Nav.astro";
+import Footer from "../../components/Footer.astro";
+
+const currentPath = "/members/members-list";
+
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev";
+---
+
+<Base
+  title="Members List"
+  description="Current TBC members list."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Members List</h1>
+      <p>Current active members of the Toronto Beekeepers Collective.</p>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="container">
+
+      <div class="filters" style="margin-bottom: 1.5rem;">
+        <div class="filter-group" style="flex:1; max-width: 360px;">
+          <label for="search-members">Search</label>
+          <input type="text" id="search-members" placeholder="Search by name..." />
+        </div>
+        <div class="filter-group">
+          <label for="filter-col">Filter column</label>
+          <select id="filter-col">
+            <option value="">All columns</option>
+          </select>
+        </div>
+        <div class="filter-group" style="justify-content:flex-end;">
+          <button id="reset-members" class="btn btn-outline-dark" style="align-self:flex-end;">Reset</button>
+        </div>
+      </div>
+
+      <div id="loading-state" class="loading">Loading members list...</div>
+      <div id="error-state" class="error-msg" style="display:none;"></div>
+
+      <div id="members-content" style="display:none;">
+        <p id="members-count" style="color:var(--charcoal-mid); font-size:0.88rem; margin-bottom:0.75rem;"></p>
+        <div class="table-wrap">
+          <table>
+            <thead id="members-thead"></thead>
+            <tbody id="members-tbody"></tbody>
+          </table>
+        </div>
+        <p id="members-empty" style="display:none; text-align:center; padding:2rem; color:var(--charcoal-mid);">
+          No members match your search.
+        </p>
+      </div>
+
+      <!-- Stub notice — remove once Worker/sheet is configured -->
+      <div id="stub-notice" class="card" style="display:none; border-left: 4px solid var(--amber); max-width:560px;">
+        <h4 style="color:var(--amber-dark); margin-bottom:0.5rem;">Schema not yet configured</h4>
+        <p style="margin-bottom:0; font-size:0.92rem;">
+          The members list Google Sheet schema hasn't been provided yet. Once you share the column headers,
+          this page can be fully wired up. The Worker endpoint <code>/members</code> is already scaffolded
+          and just needs the Sheet ID added. See <code>SETUP.md</code> for instructions.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script define:vars={{ WORKER_URL }}>
+  const $ = id => document.getElementById(id);
+
+  let allRows = [];
+  let headers = [];
+
+  async function fetchMembers() {
+    try {
+      const res = await fetch(`${WORKER_URL}/members`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      headers = json.headers ?? [];
+      allRows = json.rows   ?? [];
+
+      if (headers.length === 0) {
+        $("loading-state").style.display = "none";
+        $("stub-notice").style.display   = "block";
+        return;
+      }
+
+      init();
+    } catch (err) {
+      $("loading-state").style.display = "none";
+      $("error-state").style.display   = "block";
+      $("error-state").textContent     = `Failed to load members list: ${err.message}`;
+    }
+  }
+
+  function init() {
+    $("loading-state").style.display    = "none";
+    $("members-content").style.display  = "block";
+
+    // Build thead
+    const tr = document.createElement("tr");
+    headers.forEach(h => {
+      const th = document.createElement("th");
+      th.textContent = h;
+      tr.appendChild(th);
+    });
+    $("members-thead").appendChild(tr);
+
+    // Populate filter-col
+    const selCol = $("filter-col");
+    headers.forEach((h, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = h;
+      selCol.appendChild(opt);
+    });
+
+    render();
+  }
+
+  function getFiltered() {
+    const query  = $("search-members").value.trim().toLowerCase();
+    const colIdx = $("filter-col").value === "" ? null : parseInt($("filter-col").value);
+
+    if (!query) return allRows;
+
+    return allRows.filter(row => {
+      if (colIdx !== null) {
+        return String(row[colIdx] ?? "").toLowerCase().includes(query);
+      }
+      return Object.values(row).some(v => String(v ?? "").toLowerCase().includes(query));
+    });
+  }
+
+  function render() {
+    const rows = getFiltered();
+    const tbody = $("members-tbody");
+    tbody.innerHTML = "";
+
+    $("members-count").textContent = `${rows.length} of ${allRows.length} members`;
+
+    if (rows.length === 0) {
+      $("members-empty").style.display = "block";
+      return;
+    }
+    $("members-empty").style.display = "none";
+
+    rows.forEach(row => {
+      const tr = document.createElement("tr");
+      headers.forEach((_, i) => {
+        const td = document.createElement("td");
+        td.textContent = row[i] ?? "";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  $("search-members").addEventListener("input", render);
+  $("filter-col").addEventListener("change", render);
+  $("reset-members").addEventListener("click", () => {
+    $("search-members").value = "";
+    $("filter-col").value = "";
+    render();
+  });
+
+  fetchMembers();
+</script>

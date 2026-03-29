@@ -1,0 +1,52 @@
+---
+import Base from "../../layouts/Base.astro";
+import Nav from "../../components/Nav.astro";
+import Footer from "../../components/Footer.astro";
+
+const currentPath = "/members";
+
+const sections = [
+  {
+    href: "/members/hive-data",
+    title: "Hive Data",
+    description: "Browse and filter hive visit records. View mite counts, treatments, feed logs, and colony health status over time.",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  },
+  {
+    href: "/members/members-list",
+    title: "Members List",
+    description: "The current list of TBC members, pulled from our shared Google Sheet.",
+    icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  },
+];
+---
+
+<Base
+  title="Members Area"
+  description="Toronto Beekeepers Collective members area — hive data, member list, and more."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Members Area</h1>
+      <p>Welcome back. This section is private to TBC members.</p>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="container">
+      <div class="members-grid">
+        {sections.map(s => (
+          <a href={s.href} class="member-card">
+            <div class="member-card-icon" set:html={s.icon} />
+            <h3>{s.title}</h3>
+            <p>{s.description}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>

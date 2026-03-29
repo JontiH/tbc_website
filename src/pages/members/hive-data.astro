@@ -1,0 +1,523 @@
+---
+import Base from "../../layouts/Base.astro";
+import Nav from "../../components/Nav.astro";
+import Footer from "../../components/Footer.astro";
+
+const currentPath = "/members/hive-data";
+
+// The Worker URL — set via env var at build time, fallback for local dev
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev";
+---
+
+<Base
+  title="Hive Data"
+  description="Browse and filter hive visit records for TBC colonies."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Hive Data</h1>
+      <p>Colony visit records, health status, mite counts, and treatments — filterable by location and colony.</p>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="container">
+
+      <!-- Filters -->
+      <div class="filters" id="filters">
+        <div class="filter-group">
+          <label for="filter-location">Location</label>
+          <select id="filter-location">
+            <option value="">All Locations</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-colony">Colony</label>
+          <select id="filter-colony">
+            <option value="">All Colonies</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="filter-date-from">From</label>
+          <input type="date" id="filter-date-from" />
+        </div>
+        <div class="filter-group">
+          <label for="filter-date-to">To</label>
+          <input type="date" id="filter-date-to" />
+        </div>
+        <div class="filter-group">
+          <label for="filter-status">Status</label>
+          <select id="filter-status">
+            <option value="">All Statuses</option>
+            <option value="good">Good</option>
+            <option value="mid">Okay</option>
+            <option value="bad">Concerning</option>
+          </select>
+        </div>
+        <div class="filter-group" style="justify-content: flex-end;">
+          <button id="filter-reset" class="btn btn-outline-dark" style="align-self:flex-end;">Reset</button>
+        </div>
+      </div>
+
+      <!-- Loading / error states -->
+      <div id="loading-state" class="loading">Loading hive data...</div>
+      <div id="error-state" class="error-msg" style="display:none;"></div>
+
+      <!-- Charts -->
+      <div id="charts-area" style="display:none;">
+        <div class="charts-row">
+          <div class="chart-container" style="flex:2;">
+            <div class="chart-title">Visits Over Time</div>
+            <canvas id="chart-visits" height="90"></canvas>
+          </div>
+          <div class="chart-container" style="flex:1;">
+            <div class="chart-title">Status Distribution</div>
+            <canvas id="chart-status" height="90"></canvas>
+          </div>
+        </div>
+        <div id="mite-chart-wrap" class="chart-container" style="display:none;">
+          <div class="chart-title">Mite Count Over Time</div>
+          <canvas id="chart-mites" height="70"></canvas>
+        </div>
+      </div>
+
+      <!-- Summary row -->
+      <div id="summary-row" style="display:none;" class="summary-row">
+        <div class="summary-stat">
+          <span id="stat-visits">0</span>
+          <span>Visits shown</span>
+        </div>
+        <div class="summary-stat">
+          <span id="stat-colonies">0</span>
+          <span>Colonies</span>
+        </div>
+        <div class="summary-stat">
+          <span id="stat-locations">0</span>
+          <span>Locations</span>
+        </div>
+        <div class="summary-stat">
+          <span id="stat-mite-avg">—</span>
+          <span>Avg mite count</span>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div id="table-area" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Location</th>
+                <th>Colony</th>
+                <th>Status</th>
+                <th>Mite Count</th>
+                <th>Treatment</th>
+                <th>Feed</th>
+                <th>Feed Type</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+        <p id="table-empty" style="display:none; text-align:center; padding:2rem; color:var(--charcoal-mid);">
+          No records match your filters.
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<script define:vars={{ WORKER_URL }}>
+  // ── Column indices (0-based) from the Google Sheet ──────────────────
+  // 0: Timestamp
+  // 1: Email address        (stripped by Worker)
+  // 2: Where is the hive located?
+  // 3: Which Colony are you checking (A,B,C...)?
+  // 4: How would you describe the holistic status of this hive?
+  // 5: What is the mite count?
+  // 6: Are you doing a mite treatment?
+  // 7: Are you adding feed?
+  // 8: if you are adding feed, what type?
+  // 9: Do you have any pictures/video...   (deferred)
+  // 10: additional comments for this colony
+  // 11: Date of Visit
+
+  const COL = {
+    LOCATION: "location",
+    COLONY:   "colony",
+    STATUS:   "status",
+    MITE:     "mite_count",
+    TREATMENT:"treatment",
+    FEED:     "feed",
+    FEED_TYPE:"feed_type",
+    COMMENTS: "comments",
+    DATE:     "date",
+  };
+
+  // ── Status normalisation ─────────────────────────────────────────────
+  function normaliseStatus(raw) {
+    if (!raw) return "unknown";
+    const s = raw.toLowerCase();
+    if (s.includes("good") || s.includes("great") || s.includes("thriv") || s.includes("strong") || s.includes("excellent")) return "good";
+    if (s.includes("okay") || s.includes("ok") || s.includes("fair") || s.includes("average") || s.includes("concern")) return "mid";
+    if (s.includes("bad") || s.includes("poor") || s.includes("weak") || s.includes("dead") || s.includes("critical") || s.includes("struggling")) return "bad";
+    return "mid"; // default to mid for unrecognised values
+  }
+
+  function statusBadge(status) {
+    const map = {
+      good:    ["badge-good",  "Good"],
+      mid:     ["badge-mid",   "Okay"],
+      bad:     ["badge-bad",   "Concerning"],
+      unknown: ["badge-unknown","Unknown"],
+    };
+    const [cls, label] = map[status] ?? map.unknown;
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  // ── Date helpers ─────────────────────────────────────────────────────
+  function parseDate(val) {
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function fmtDate(d) {
+    if (!d) return "—";
+    return d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  // ── State ────────────────────────────────────────────────────────────
+  let allRows = [];
+  let charts  = {};
+
+  // ── DOM refs ─────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const selLocation  = $("filter-location");
+  const selColony    = $("filter-colony");
+  const inpFrom      = $("filter-date-from");
+  const inpTo        = $("filter-date-to");
+  const selStatus    = $("filter-status");
+  const btnReset     = $("filter-reset");
+  const loadingEl    = $("loading-state");
+  const errorEl      = $("error-state");
+  const chartsArea   = $("charts-area");
+  const miteWrap     = $("mite-chart-wrap");
+  const summaryRow   = $("summary-row");
+  const tableArea    = $("table-area");
+  const tableBody    = $("table-body");
+  const tableEmpty   = $("table-empty");
+
+  // ── Fetch ────────────────────────────────────────────────────────────
+  async function fetchData() {
+    try {
+      const res = await fetch(`${WORKER_URL}/hive-data`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      allRows = json.rows ?? [];
+      init();
+    } catch (err) {
+      loadingEl.style.display = "none";
+      errorEl.style.display   = "block";
+      errorEl.textContent     = `Failed to load hive data: ${err.message}. Make sure the Worker is deployed and the HIVE_WORKER_URL is configured.`;
+    }
+  }
+
+  // ── Initialise filters & render ──────────────────────────────────────
+  function init() {
+    loadingEl.style.display = "none";
+
+    // Populate location dropdown
+    const locations = [...new Set(allRows.map(r => r[COL.LOCATION]).filter(Boolean))].sort();
+    locations.forEach(loc => {
+      const opt = document.createElement("option");
+      opt.value = loc;
+      opt.textContent = loc;
+      selLocation.appendChild(opt);
+    });
+
+    render();
+
+    chartsArea.style.display   = "block";
+    summaryRow.style.display   = "flex";
+    tableArea.style.display    = "block";
+  }
+
+  // ── Filtering ────────────────────────────────────────────────────────
+  function getFiltered() {
+    const loc      = selLocation.value;
+    const colony   = selColony.value;
+    const from     = inpFrom.value   ? new Date(inpFrom.value)   : null;
+    const to       = inpTo.value     ? new Date(inpTo.value + "T23:59:59") : null;
+    const statFilt = selStatus.value;
+
+    return allRows.filter(r => {
+      if (loc    && r[COL.LOCATION] !== loc)    return false;
+      if (colony && r[COL.COLONY]   !== colony) return false;
+      if (statFilt) {
+        const s = normaliseStatus(r[COL.STATUS]);
+        if (s !== statFilt) return false;
+      }
+      const d = parseDate(r[COL.DATE]);
+      if (from && d && d < from) return false;
+      if (to   && d && d > to)   return false;
+      return true;
+    });
+  }
+
+  // ── Colony dropdown updates based on location selection ─────────────
+  selLocation.addEventListener("change", () => {
+    const loc = selLocation.value;
+    const prevColony = selColony.value;
+    selColony.innerHTML = "<option value=''>All Colonies</option>";
+    const colonies = [...new Set(
+      allRows
+        .filter(r => !loc || r[COL.LOCATION] === loc)
+        .map(r => r[COL.COLONY])
+        .filter(Boolean)
+    )].sort();
+    colonies.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = `Colony ${c}`;
+      if (c === prevColony) opt.selected = true;
+      selColony.appendChild(opt);
+    });
+    render();
+  });
+
+  selColony.addEventListener("change",   render);
+  inpFrom.addEventListener("change",     render);
+  inpTo.addEventListener("change",       render);
+  selStatus.addEventListener("change",   render);
+
+  btnReset.addEventListener("click", () => {
+    selLocation.value = "";
+    selColony.value   = "";
+    inpFrom.value     = "";
+    inpTo.value       = "";
+    selStatus.value   = "";
+    selLocation.dispatchEvent(new Event("change"));
+  });
+
+  // ── Main render ──────────────────────────────────────────────────────
+  function render() {
+    const rows = getFiltered();
+
+    renderSummary(rows);
+    renderTable(rows);
+    renderCharts(rows);
+  }
+
+  // ── Summary ──────────────────────────────────────────────────────────
+  function renderSummary(rows) {
+    $("stat-visits").textContent    = rows.length;
+    $("stat-colonies").textContent  = new Set(rows.map(r => r[COL.COLONY])).size;
+    $("stat-locations").textContent = new Set(rows.map(r => r[COL.LOCATION])).size;
+
+    const mites = rows.map(r => parseFloat(r[COL.MITE])).filter(n => !isNaN(n));
+    $("stat-mite-avg").textContent = mites.length
+      ? (mites.reduce((a,b) => a+b, 0) / mites.length).toFixed(1)
+      : "—";
+  }
+
+  // ── Table ────────────────────────────────────────────────────────────
+  function renderTable(rows) {
+    tableBody.innerHTML = "";
+
+    if (rows.length === 0) {
+      tableEmpty.style.display = "block";
+      return;
+    }
+    tableEmpty.style.display = "none";
+
+    // Sort newest first
+    const sorted = [...rows].sort((a, b) => {
+      const da = parseDate(a[COL.DATE]);
+      const db = parseDate(b[COL.DATE]);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db - da;
+    });
+
+    sorted.forEach(r => {
+      const status = normaliseStatus(r[COL.STATUS]);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${fmtDate(parseDate(r[COL.DATE]))}</td>
+        <td>${r[COL.LOCATION] ?? "—"}</td>
+        <td>${r[COL.COLONY] ? `Colony ${r[COL.COLONY]}` : "—"}</td>
+        <td>${statusBadge(status)}</td>
+        <td>${r[COL.MITE] ?? "—"}</td>
+        <td>${r[COL.TREATMENT] ?? "—"}</td>
+        <td>${r[COL.FEED] ?? "—"}</td>
+        <td>${r[COL.FEED_TYPE] ?? "—"}</td>
+        <td style="max-width:240px; white-space:pre-wrap; font-size:0.85rem;">${r[COL.COMMENTS] ?? ""}</td>
+      `;
+      tableBody.appendChild(tr);
+    });
+  }
+
+  // ── Charts ───────────────────────────────────────────────────────────
+  async function renderCharts(rows) {
+    const { Chart, registerables } = await import("https://cdn.jsdelivr.net/npm/chart.js@4/+esm");
+    Chart.register(...registerables);
+
+    // ── Visits over time (line chart, grouped by month) ──────────────
+    const visitsByMonth = {};
+    rows.forEach(r => {
+      const d = parseDate(r[COL.DATE]);
+      if (!d) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+      visitsByMonth[key] = (visitsByMonth[key] ?? 0) + 1;
+    });
+    const visitLabels = Object.keys(visitsByMonth).sort();
+    const visitData   = visitLabels.map(k => visitsByMonth[k]);
+
+    if (charts.visits) charts.visits.destroy();
+    charts.visits = new Chart($("chart-visits"), {
+      type: "line",
+      data: {
+        labels: visitLabels,
+        datasets: [{
+          label: "Visits",
+          data: visitData,
+          borderColor: "#F5A623",
+          backgroundColor: "rgba(245,166,35,0.12)",
+          tension: 0.3,
+          fill: true,
+          pointBackgroundColor: "#F5A623",
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { stepSize: 1 } },
+          x: { grid: { display: false } },
+        },
+      },
+    });
+
+    // ── Status distribution (doughnut) ───────────────────────────────
+    const statusCount = { good: 0, mid: 0, bad: 0, unknown: 0 };
+    rows.forEach(r => { statusCount[normaliseStatus(r[COL.STATUS])]++; });
+
+    if (charts.status) charts.status.destroy();
+    charts.status = new Chart($("chart-status"), {
+      type: "doughnut",
+      data: {
+        labels: ["Good", "Okay", "Concerning", "Unknown"],
+        datasets: [{
+          data: [statusCount.good, statusCount.mid, statusCount.bad, statusCount.unknown],
+          backgroundColor: ["#2E7D32", "#F57F17", "#C62828", "#9E9E9E"],
+          borderWidth: 2,
+          borderColor: "#fff",
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: "bottom", labels: { font: { size: 11 } } },
+        },
+        cutout: "65%",
+      },
+    });
+
+    // ── Mite count over time ─────────────────────────────────────────
+    const miteRows = rows
+      .filter(r => r[COL.MITE] !== "" && r[COL.MITE] != null && !isNaN(parseFloat(r[COL.MITE])))
+      .map(r => ({ date: parseDate(r[COL.DATE]), val: parseFloat(r[COL.MITE]), colony: r[COL.COLONY] ?? "?" }))
+      .filter(r => r.date)
+      .sort((a, b) => a.date - b.date);
+
+    if (miteRows.length > 0) {
+      miteWrap.style.display = "block";
+      if (charts.mites) charts.mites.destroy();
+      charts.mites = new Chart($("chart-mites"), {
+        type: "line",
+        data: {
+          labels: miteRows.map(r => fmtDate(r.date)),
+          datasets: [{
+            label: "Mite Count",
+            data: miteRows.map(r => r.val),
+            borderColor: "#C62828",
+            backgroundColor: "rgba(198,40,40,0.08)",
+            tension: 0.2,
+            fill: true,
+            pointBackgroundColor: "#C62828",
+            pointRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: "Mites per 100 bees" } },
+            x: { grid: { display: false } },
+          },
+        },
+      });
+    } else {
+      miteWrap.style.display = "none";
+    }
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────────────
+  fetchData();
+</script>
+
+<style>
+  .charts-row {
+    display: flex;
+    gap: 1.25rem;
+    margin-bottom: 0;
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin: 1.25rem 0;
+  }
+
+  .summary-stat {
+    flex: 1;
+    min-width: 120px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.2rem;
+  }
+
+  .summary-stat span:first-child {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--amber-dark);
+    line-height: 1;
+  }
+
+  .summary-stat span:last-child {
+    font-size: 0.78rem;
+    color: var(--charcoal-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  @media (max-width: 720px) {
+    .charts-row { flex-direction: column; }
+  }
+</style>
