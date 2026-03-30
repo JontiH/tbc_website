@@ -67,7 +67,7 @@ async function getAccessToken(env) {
   const pemBody = env.GOOGLE_PRIVATE_KEY
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
     .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
+    .replace(/\r?\n/g, "");
 
   const keyDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
 
@@ -119,8 +119,21 @@ function b64urlBuf(buf) {
 }
 
 // ── Fetch sheet values ───────────────────────────────────────────────────────
+function quoteRange(range) {
+  // If the tab name contains spaces or special chars, wrap it in single quotes
+  // e.g. "TBC Memberships - 2024!A:Z" → "'TBC Memberships - 2024'!A:Z"
+  const bang = range.indexOf("!");
+  if (bang === -1) return range;
+  const tab = range.slice(0, bang);
+  const cells = range.slice(bang + 1);
+  const quoted = (tab.includes(" ") || tab.includes("-")) && !tab.startsWith("'")
+    ? `'${tab}'`
+    : tab;
+  return `${quoted}!${cells}`;
+}
+
 async function fetchSheetValues(sheetId, range, accessToken) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(quoteRange(range))}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

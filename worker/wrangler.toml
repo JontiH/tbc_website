@@ -13,5 +13,3 @@ compatibility_date = "2024-01-01"
 #   npx wrangler secret put MEMBERS_SHEET_ID
 #   npx wrangler secret put MEMBERS_SHEET_RANGE
 
-[env.production]
-name = "tbc-sheets-worker"

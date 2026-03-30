@@ -1,0 +1,53 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'worker/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Deploy worker
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 7679249973b3ca7cd658c198c69e1e5e
+        run: wrangler deploy
+
+      - name: Set secrets
+        if: success()
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 7679249973b3ca7cd658c198c69e1e5e
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          HIVE_SHEET_ID: ${{ secrets.HIVE_SHEET_ID }}
+          HIVE_SHEET_RANGE: ${{ secrets.HIVE_SHEET_RANGE }}
+          MEMBERS_SHEET_ID: ${{ secrets.MEMBERS_SHEET_ID }}
+          MEMBERS_SHEET_RANGE: ${{ secrets.MEMBERS_SHEET_RANGE }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_EMAIL" | wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL
+          printf '%s' "$GOOGLE_PRIVATE_KEY"           | wrangler secret put GOOGLE_PRIVATE_KEY
+          printf '%s' "$HIVE_SHEET_ID"                | wrangler secret put HIVE_SHEET_ID
+          printf '%s' "$HIVE_SHEET_RANGE"             | wrangler secret put HIVE_SHEET_RANGE
+          printf '%s' "$MEMBERS_SHEET_ID"             | wrangler secret put MEMBERS_SHEET_ID
+          printf '%s' "$MEMBERS_SHEET_RANGE"          | wrangler secret put MEMBERS_SHEET_RANGE

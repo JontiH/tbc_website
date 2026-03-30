@@ -1,0 +1,24 @@
+services:
+  astro:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "4321:4321"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - HIVE_WORKER_URL=http://localhost:8787
+    depends_on:
+      - worker
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    ports:
+      - "8787:8787"
+    env_file:
+      - ./.env

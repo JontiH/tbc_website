@@ -21,8 +21,46 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     </div>
   </div>
 
-  <section class="section">
-    <div class="container">
+  <style>
+    .members-section { padding: 2rem 1rem; }
+    .members-wrap { max-width: 1400px; margin: 0 auto; }
+    .members-wrap .table-wrap { overflow-x: auto; }
+    .members-wrap table { font-size: 0.82rem; }
+    .members-wrap thead th {
+      padding: 0.6rem 0.75rem;
+      white-space: normal;
+      word-break: break-word;
+      min-width: 80px;
+    }
+    .members-wrap tbody td {
+      padding: 0.55rem 0.75rem;
+      word-break: break-word;
+    }
+    /* Give name column a bit more room */
+    .members-wrap thead th:first-child,
+    .members-wrap tbody td:first-child { min-width: 120px; }
+    /* Squish committees and swarm brigade to fit content */
+    .members-wrap thead th:nth-child(4),
+    .members-wrap tbody td:nth-child(4),
+    .members-wrap thead th:nth-child(6),
+    .members-wrap tbody td:nth-child(6) { min-width: 0; width: 1%; }
+    /* Thicker rows */
+    .members-wrap tbody td { padding: 0.9rem 0.75rem; }
+    /* Tags for committees and swarm brigade */
+    .cell-tags { display: flex; flex-direction: column; gap: 0.25rem; }
+    .cell-tag {
+      display: inline-block;
+      background: var(--amber-light);
+      color: var(--charcoal);
+      border-radius: 3px;
+      padding: 0.15rem 0.45rem;
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+  </style>
+
+  <section class="members-section">
+    <div class="members-wrap">
 
       <div class="filters" style="margin-bottom: 1.5rem;">
         <div class="filter-group" style="flex:1; max-width: 360px;">
@@ -70,6 +108,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   </section>
 
   <Footer slot="footer" />
+
 </Base>
 
 <script define:vars={{ WORKER_URL }}>
@@ -134,7 +173,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
     return allRows.filter(row => {
       if (colIdx !== null) {
-        return String(row[colIdx] ?? "").toLowerCase().includes(query);
+        return String(row[headers[colIdx]] ?? "").toLowerCase().includes(query);
       }
       return Object.values(row).some(v => String(v ?? "").toLowerCase().includes(query));
     });
@@ -155,9 +194,30 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
     rows.forEach(row => {
       const tr = document.createElement("tr");
-      headers.forEach((_, i) => {
+      headers.forEach(h => {
         const td = document.createElement("td");
-        td.textContent = row[i] ?? "";
+        const val = row[h] ?? "";
+        if ((h === "Swarm Brigade" || h === "Committees") && val.includes(",")) {
+          const wrap = document.createElement("div");
+          wrap.className = "cell-tags";
+          val.split(",").forEach(item => {
+            const tag = document.createElement("span");
+            tag.className = "cell-tag";
+            tag.textContent = item.trim();
+            wrap.appendChild(tag);
+          });
+          td.appendChild(wrap);
+        } else if ((h === "Swarm Brigade" || h === "Committees") && val) {
+          const wrap = document.createElement("div");
+          wrap.className = "cell-tags";
+          const tag = document.createElement("span");
+          tag.className = "cell-tag";
+          tag.textContent = val.trim();
+          wrap.appendChild(tag);
+          td.appendChild(wrap);
+        } else {
+          td.textContent = val;
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
