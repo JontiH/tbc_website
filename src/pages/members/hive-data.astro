@@ -116,7 +116,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
                 <th>Mite Count</th>
                 <th>Treatment</th>
                 <th>Feed</th>
-                <th>Feed Type</th>
                 <th>Comments</th>
               </tr>
             </thead>
@@ -185,6 +184,12 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   // ── Date helpers ─────────────────────────────────────────────────────
   function parseDate(val) {
     if (!val) return null;
+    // Handle DD/MM/YYYY from Google Sheets
+    const dmy = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3]), parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
   }
@@ -242,6 +247,11 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       opt.textContent = loc;
       selLocation.appendChild(opt);
     });
+
+    // Default to current calendar year
+    const year = new Date().getFullYear();
+    inpFrom.value = `${year}-01-01`;
+    inpTo.value   = `${year}-12-31`;
 
     render();
 
@@ -359,7 +369,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
         <td>${r[COL.MITE] ?? "—"}</td>
         <td>${r[COL.TREATMENT] ?? "—"}</td>
         <td>${r[COL.FEED] ?? "—"}</td>
-        <td>${r[COL.FEED_TYPE] ?? "—"}</td>
         <td style="max-width:240px; white-space:pre-wrap; font-size:0.85rem;">${r[COL.COMMENTS] ?? ""}</td>
       `;
       tableBody.appendChild(tr);
