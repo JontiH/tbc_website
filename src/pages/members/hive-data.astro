@@ -64,7 +64,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       <!-- Loading / error states -->
       <div id="loading-state" class="loading">Loading hive data...</div>
       <div id="error-state" class="error-msg" style="display:none;"></div>
-      <div id="debug-panel" style="background:#FDE9C0;border:2px solid #F5A623;border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:0.85rem;display:none;"></div>
+
 
       <!-- Charts -->
       <div id="charts-area" style="display:none;">
@@ -222,24 +222,14 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   const tableEmpty   = $("table-empty");
 
   // ── Fetch ────────────────────────────────────────────────────────────
-  const debugEl = document.getElementById("debug-panel");
-  function debug(msg) {
-    debugEl.style.display = "block";
-    debugEl.innerHTML += msg + "<br>";
-  }
-
   async function fetchData() {
-    debug(`Fetching: ${WORKER_URL}/hive-data`);
     try {
       const res = await fetch(`${WORKER_URL}/hive-data`);
-      debug(`Response: ${res.status} ${res.ok ? "OK" : "FAIL"}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       allRows = json.rows ?? [];
-      debug(`Rows loaded: ${allRows.length}`);
       init();
     } catch (err) {
-      debug(`ERROR: ${err.message}`);
       loadingEl.style.display = "none";
       errorEl.style.display   = "block";
       errorEl.textContent     = `Failed to load hive data: ${err.message}. Make sure the Worker is deployed and the HIVE_WORKER_URL is configured.`;

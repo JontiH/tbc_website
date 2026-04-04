@@ -35,6 +35,18 @@ function jsonResponse(data, status = 200, origin) {
     status,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      ...corsHeaders(origin),
+    },
+  });
+}
+
+// Internal cache-friendly response (used when storing in Workers Cache API)
+function cacheableResponse(data, status = 200, origin) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
       "Cache-Control": `public, max-age=${CACHE_TTL}`,
       ...corsHeaders(origin),
     },
@@ -240,7 +252,7 @@ export default {
         const range  = env.HIVE_SHEET_RANGE ?? "Sheet1!A:L";
         const values = await fetchSheetValues(env.HIVE_SHEET_ID, range, token);
         const data   = processHiveData(values);
-        response     = jsonResponse(data, 200, origin);
+        response     = cacheableResponse(data, 200, origin);
 
       } else if (path === "/members") {
         if (!env.MEMBERS_SHEET_ID || !env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !env.GOOGLE_PRIVATE_KEY) {
@@ -254,7 +266,7 @@ export default {
         const range  = env.MEMBERS_SHEET_RANGE ?? "Sheet1!A:Z";
         const values = await fetchSheetValues(env.MEMBERS_SHEET_ID, range, token);
         const { headers, rows } = mapRows(values);
-        response = jsonResponse({ headers, rows }, 200, origin);
+        response = cacheableResponse({ headers, rows }, 200, origin);
 
       } else {
         return errorResponse("Not found", 404, origin);
