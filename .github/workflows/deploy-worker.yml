@@ -40,14 +40,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: 7679249973b3ca7cd658c198c69e1e5e
           GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
           GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
-          HIVE_SHEET_ID: ${{ secrets.HIVE_SHEET_ID }}
-          HIVE_SHEET_RANGE: ${{ secrets.HIVE_SHEET_RANGE }}
-          MEMBERS_SHEET_ID: ${{ secrets.MEMBERS_SHEET_ID }}
-          MEMBERS_SHEET_RANGE: ${{ secrets.MEMBERS_SHEET_RANGE }}
         run: |
           printf '%s' "$GOOGLE_SERVICE_ACCOUNT_EMAIL" | wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL
           printf '%s' "$GOOGLE_PRIVATE_KEY"           | wrangler secret put GOOGLE_PRIVATE_KEY
-          printf '%s' "$HIVE_SHEET_ID"                | wrangler secret put HIVE_SHEET_ID
-          printf '%s' "$HIVE_SHEET_RANGE"             | wrangler secret put HIVE_SHEET_RANGE
-          printf '%s' "$MEMBERS_SHEET_ID"             | wrangler secret put MEMBERS_SHEET_ID
-          printf '%s' "$MEMBERS_SHEET_RANGE"          | wrangler secret put MEMBERS_SHEET_RANGE

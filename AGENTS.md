@@ -181,21 +181,22 @@ Worker secrets (set via `wrangler secret put`, never in files):
 |---|---|
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Service account `client_email` from JSON key |
 | `GOOGLE_PRIVATE_KEY` | Service account `private_key` from JSON key |
-| `HIVE_SHEET_ID` | Google Sheet ID for hive notes |
-| `HIVE_SHEET_RANGE` | Sheet range, e.g. `Sheet1!A:L` |
-| `MEMBERS_SHEET_ID` | Google Sheet ID for member list |
-| `MEMBERS_SHEET_RANGE` | Sheet range, e.g. `Sheet1!A:Z` |
 
-**Concrete values (non-secret config):**
+Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version controlled, no secrets needed:
+
+| Key | Value |
+|---|---|
+| `HIVE_SHEET_ID` | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
+| `HIVE_SHEET_RANGE` | `Form responses 1!A:K` |
+| `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
+| `MEMBERS_SHEET_RANGE` | `TBC Memberships 2024!A:Z` |
+
+**Other non-secret config:**
 
 | Key | Value |
 |---|---|
 | Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| Hive sheet ID | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
-| Hive sheet range | `Form responses 1!A:K` |
-| Members sheet ID | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
-| Members sheet range | `TBC Memberships 2024!A:Z` |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
 

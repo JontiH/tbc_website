@@ -5,11 +5,13 @@ compatibility_date = "2024-01-01"
 # Worker is deployed separately from the Astro site.
 # Run: cd worker && npx wrangler deploy
 
-# Secrets are set via:
+# Non-secret config — sheet IDs and ranges live here in version control
+[vars]
+HIVE_SHEET_ID     = "1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA"
+HIVE_SHEET_RANGE  = "Form responses 1!A:K"
+MEMBERS_SHEET_ID  = "1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ"
+MEMBERS_SHEET_RANGE = "TBC Memberships 2024!A:Z"
+
+# Secrets are set via wrangler secret put (never committed):
 #   npx wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL
 #   npx wrangler secret put GOOGLE_PRIVATE_KEY
-#   npx wrangler secret put HIVE_SHEET_ID
-#   npx wrangler secret put HIVE_SHEET_RANGE
-#   npx wrangler secret put MEMBERS_SHEET_ID
-#   npx wrangler secret put MEMBERS_SHEET_RANGE
-
