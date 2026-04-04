@@ -1,9 +1,7 @@
-# AGENTS.md — Context for AI Coding Agents
+# TBC Website
 
-This file provides context for AI agents (OpenCode, Claude, etc.) working on this codebase.
+Toronto Beekeepers Collective — Astro static site + Cloudflare Worker API.
 Read this before making changes.
-
----
 
 ## Project Overview
 
@@ -117,7 +115,7 @@ Browser → Cloudflare Worker (/hive-data or /members) → Google Sheets API v4
 | Endpoint | Sheet | Notes |
 |---|---|---|
 | `GET /hive-data` | Hive notes Google Form responses | Strips `Email address` column; renames columns to short keys |
-| `GET /members` | Members list Google Sheet | Returns raw `{ headers, rows }` — frontend renders dynamically |
+| `GET /members` | Members list Google Sheet | Returns `{ headers, rows }` — frontend renders dynamically |
 
 ### Hive data column mapping
 
@@ -162,6 +160,13 @@ static files and shows a login page for unapproved visitors.
 email list when members join or leave. No code changes needed.
 **Session duration:** Configurable in the Access policy (default: 24 hours).
 
+### Members sheet columns
+
+`Name`, `Email`, `Phone Number`, `Committees`, `Partner liaison`, `Swarm Brigade`, `Nearest Intersection`
+
+- `Committees` and `Swarm Brigade` are comma-separated values — rendered as stacked amber tags in the UI
+- Rows are objects keyed by header name (not by index) — use `row[header]` not `row[i]`
+
 ---
 
 ## Environment Variables
@@ -181,6 +186,19 @@ Worker secrets (set via `wrangler secret put`, never in files):
 | `MEMBERS_SHEET_ID` | Google Sheet ID for member list |
 | `MEMBERS_SHEET_RANGE` | Sheet range, e.g. `Sheet1!A:Z` |
 
+**Concrete values (non-secret config):**
+
+| Key | Value |
+|---|---|
+| Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
+| Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
+| Hive sheet ID | `1vrrWr86Xp3Ef35C2rbB_Y1OhjRqmf-tCii3cq1HmZB8` |
+| Hive sheet range | `Form responses 1!A:L` |
+| Members sheet ID | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
+| Members sheet range | `TBC Memberships 2024!A:Z` |
+
+Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
+
 ---
 
 ## Development
@@ -192,6 +210,27 @@ cp .env.example .env    # fill in HIVE_WORKER_URL
 npm run dev             # http://localhost:4321
 npm run build           # production build → dist/
 ```
+
+Node.js on the host may be v18 (too old for wrangler). Use Docker for all wrangler operations.
+
+---
+
+## Docker Development
+
+A Docker Compose setup runs both Astro and the Worker locally against real Google Sheets.
+
+**Key gotchas — read before touching docker-compose:**
+
+- Single root `.env` file used by both containers (no separate `worker/.env`)
+- **Astro** uses `node:22-alpine` (fine — no native binaries)
+- **Worker** must use `node:22-slim` (Debian) — Alpine's musl libc breaks wrangler's `workerd` binary
+- Worker needs `ca-certificates` installed — `workerd` does its own TLS and won't work without it
+- Worker container has **no volume mount** — a volume mount shadows wrangler's downloaded `workerd` binary and breaks it
+- `entrypoint.sh` writes `.dev.vars` from environment variables before starting `wrangler dev`
+- `GOOGLE_PRIVATE_KEY` in `.dev.vars` must be a single quoted line with literal `\n` — achieved via `awk '{printf "%s\\n", $0}'` in `entrypoint.sh`
+- `HIVE_WORKER_URL` must be `http://localhost:8787` in docker-compose — the URL is baked into client-side JS, so it must be resolvable by the browser, not Docker
+- `wrangler dev` flags: use `--ip 0.0.0.0` (not `--host`), and do NOT use `--local` (deprecated in wrangler v3+)
+- Old `docker-compose` v1 has a `ContainerConfig` KeyError bug when recreating containers — always `docker-compose down` before `up --build`
 
 ---
 
@@ -209,15 +248,27 @@ See `SETUP.md` for full first-time setup instructions.
 
 ---
 
+## GitHub Actions (CI/CD)
+
+Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual `workflow_dispatch`.
+
+**Key details:**
+- Uses `actions/setup-node@v4` with `node-version: 22` — not the `container:` approach
+- Secrets are passed to `wrangler secret put` via `printf '%s'` not `echo` — avoids corrupting the multi-line PEM key
+- The `Set secrets` step has an `if: success()` guard so it doesn't run if the deploy itself fails
+- All 8 GitHub Secrets must be set: `CLOUDFLARE_API_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `MEMBERS_SHEET_ID`, `MEMBERS_SHEET_RANGE`
+
+---
+
 ## What's Deferred / Stubbed
 
 | Item | Status | Notes |
 |---|---|---|
-| **Members list schema** | Awaiting sheet headers from client | Worker endpoint exists; frontend auto-renders any columns |
 | **Hive photos/video** | Deferred | Column exists in sheet data; not displayed in UI yet |
 | **Logo file** | Awaiting upload | Place at `public/logo.png`; referenced in `Nav.astro` |
 | **Custom domain** | Post-deploy | Point `torontobeekeeping.ca` to Cloudflare Pages once live |
 | **Cache busting** | Future | Currently requires Worker redeploy; could add query param handler |
+| **Cloudflare Access** | Pending | Add OTP email auth protecting `/members/*` |
 
 ---
 
