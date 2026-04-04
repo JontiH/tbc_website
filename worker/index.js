@@ -159,16 +159,16 @@ function mapRows(values) {
 
 // ── Hive data: strip Email column, rename headers for frontend ───────────────
 const HIVE_COLUMN_MAP = {
-  "Where is the hive located?":                                        "location",
-  "Which Colony are you checking (A,B,C...)?":                         "colony",
-  "How would you describe the holistic status of this hive?":          "status",
-  "What is the mite count? ( leave blank if you didn't check)":        "mite_count",
-  "Are you doing a mite treatment?":                                   "treatment",
-  "Are you adding feed?":                                              "feed",
-  "if you are adding feed, what type?":                                "feed_type",
-  "additional comments for this colony":                               "comments",
-  "Date of Visit":                                                     "date",
-  "Timestamp":                                                         "timestamp",
+  "Where is the hive located?":                                              "location",
+  "Which Colony are you checking (A,B,C...)?":                               "colony",
+  "How would you describe the holistic status of this hive?":                "status",
+  "What is the mite count? ( leave blank if you didn't check)":              "mite_count",
+  "Are you doing a mite treatment? if so what type of treament?":            "treatment",
+  "Are you adding feed? if so, what type of feed?":                          "feed",
+  "additional comments for this colony":                                     "comments",
+  "Do you have any pictures/video of the hive to share?":                    "photos",
+  "Date of Visit":                                                           "date",
+  "Timestamp":                                                               "timestamp",
 };
 
 const HIVE_STRIP_COLUMNS = ["Email address", "Email Address"];

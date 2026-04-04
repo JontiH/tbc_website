@@ -126,11 +126,11 @@ The Worker renames verbose Google Form column headers to short keys for the fron
 | `Where is the hive located?` | `location` |
 | `Which Colony are you checking (A,B,C...)?` | `colony` |
 | `How would you describe the holistic status of this hive?` | `status` |
-| `What is the mite count?` | `mite_count` |
-| `Are you doing a mite treatment?` | `treatment` |
-| `Are you adding feed?` | `feed` |
-| `if you are adding feed, what type?` | `feed_type` |
+| `What is the mite count? ( leave blank if you didn't check)` | `mite_count` |
+| `Are you doing a mite treatment? if so what type of treament?` | `treatment` |
+| `Are you adding feed? if so, what type of feed?` | `feed` |
 | `additional comments for this colony` | `comments` |
+| `Do you have any pictures/video of the hive to share?` | `photos` |
 | `Date of Visit` | `date` |
 | `Timestamp` | `timestamp` |
 | `Email address` | *(stripped — never sent to browser)* |
@@ -192,8 +192,8 @@ Worker secrets (set via `wrangler secret put`, never in files):
 |---|---|
 | Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| Hive sheet ID | `1vrrWr86Xp3Ef35C2rbB_Y1OhjRqmf-tCii3cq1HmZB8` |
-| Hive sheet range | `Form responses 1!A:L` |
+| Hive sheet ID | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
+| Hive sheet range | `Form responses 1!A:K` |
 | Members sheet ID | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
 | Members sheet range | `TBC Memberships 2024!A:Z` |
 
