@@ -236,9 +236,24 @@ A Docker Compose setup runs both Astro and the Worker locally against real Googl
 
 ## Deployment
 
-Pushing to `main` triggers an automatic Cloudflare Pages build and deploy.
+### Cloudflare Pages (site)
 
-The Worker is deployed separately:
+Pushing to `main` auto-deploys via the `deploy-pages.yml` GitHub Action.
+
+- Pages project: `tbc-website`
+- Production URL: `https://tbc-website-btd.pages.dev`
+- Custom domain: `https://tbchivecheck.ca`
+- Build command: `npm run build`
+- Build env: `HIVE_WORKER_URL=https://tbc-sheets-worker.jbhmario.workers.dev`
+
+### Cloudflare Worker (API)
+
+The Worker is deployed separately via the `deploy-worker.yml` GitHub Action on push to `main` (paths: `worker/**`).
+
+- Worker name: `tbc-sheets-worker`
+- Worker URL: `https://tbc-sheets-worker.jbhmario.workers.dev`
+
+To deploy manually:
 ```bash
 cd worker
 npx wrangler deploy
@@ -269,6 +284,7 @@ Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual
 | **Custom domain** | Post-deploy | Point `torontobeekeeping.ca` to Cloudflare Pages once live |
 | **Cache busting** | Future | Currently requires Worker redeploy; could add query param handler |
 | **Cloudflare Access** | Pending | Add OTP email auth protecting `/members/*` |
+| **tbchivecheck.ca DNS** | Pending | Add CNAME `@` → `tbc-website-btd.pages.dev` in Cloudflare DNS dashboard |
 
 ---
 
