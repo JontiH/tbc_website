@@ -55,7 +55,7 @@ tbc_website/
 │   └── wrangler.toml            # Worker deploy config
 ├── public/
 │   ├── favicon.svg
-│   └── logo.png                 # TBC logo — ADD THIS FILE (not yet in repo)
+│   └── logo.png                 # TBC logo (downloaded from torontobeekeeping.ca)
 ├── astro.config.mjs
 ├── package.json
 ├── .env.example
@@ -186,6 +186,7 @@ Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version con
 
 | Key | Value |
 |---|---|
+| `CACHE_VER` | `2` (increment to bust all edge caches — see Caching section) |
 | `HIVE_SHEET_ID` | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
 | `HIVE_SHEET_RANGE` | `Form responses 1!A:K` |
 | `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
@@ -272,7 +273,9 @@ Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual
 - Uses `actions/setup-node@v4` with `node-version: 22` — not the `container:` approach
 - Secrets are passed to `wrangler secret put` via `printf '%s'` not `echo` — avoids corrupting the multi-line PEM key
 - The `Set secrets` step has an `if: success()` guard so it doesn't run if the deploy itself fails
-- All 8 GitHub Secrets must be set: `CLOUDFLARE_API_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `MEMBERS_SHEET_ID`, `MEMBERS_SHEET_RANGE`
+- Only 3 GitHub Secrets needed now: `CLOUDFLARE_API_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` — sheet IDs/ranges are in `wrangler.toml` vars
+- Pages deploy (`deploy-pages.yml`) is triggered on all `main` pushes **except** `worker/**` changes
+- Worker deploy (`deploy-worker.yml`) is triggered only on `worker/**` changes
 
 ---
 
@@ -281,11 +284,43 @@ Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual
 | Item | Status | Notes |
 |---|---|---|
 | **Hive photos/video** | Deferred | Column exists in sheet data; not displayed in UI yet |
-| **Logo file** | Awaiting upload | Place at `public/logo.png`; referenced in `Nav.astro` |
 | **Custom domain** | Post-deploy | Point `torontobeekeeping.ca` to Cloudflare Pages once live |
-| **Cache busting** | Future | Currently requires Worker redeploy; could add query param handler |
 | **Cloudflare Access** | Pending | Add OTP email auth protecting `/members/*` |
-| **tbchivecheck.ca DNS** | Pending | Add CNAME `@` → `tbc-website-btd.pages.dev` in Cloudflare DNS dashboard |
+
+---
+
+## Caching
+
+The Worker uses Cloudflare's Cache API (`caches.default`) to cache Google Sheets responses for 1 hour server-side. Key design decisions and gotchas:
+
+- **Browser caching is disabled** — the Worker returns `Cache-Control: no-store` to clients. Caching is handled entirely server-side. This prevents browsers from holding stale empty responses.
+- **Cache key includes `CACHE_VER` and sheet ID** — so changing either automatically busts the edge cache without needing to purge manually.
+- **To bust the cache**: increment `CACHE_VER` in `worker/wrangler.toml` and push. The worker redeploys and all edge nodes start fresh.
+- **workers.dev cache is not purgeable via API** — the `workers.dev` subdomain is not a user-managed Cloudflare zone, so the standard cache purge API doesn't work for it. `CACHE_VER` is the escape hatch.
+- **Different Cloudflare edge nodes have separate caches** — a cache hit on one edge doesn't mean another edge has it. This is why curl and a browser can return different results during a transition.
+
+---
+
+## DNS
+
+- Domain `tbchivecheck.ca` is registered at **Hover** but uses **Cloudflare nameservers** for DNS (`rayne.ns.cloudflare.com`, `woz.ns.cloudflare.com`)
+- Cloudflare Zone ID: `6483c778b21c665836110a7c9c173aec`
+- DNS record: `CNAME @ → tbc-website-btd.pages.dev` (proxied) — Cloudflare flattens CNAME at apex
+- MX record kept for Hover email hosting
+- The API token has Zone DNS Edit + Zone Read permissions — DNS records can be managed via the Cloudflare API
+
+---
+
+## Cloudflare API Token
+
+The token in `.env` as `CLOUDFLARE_API_TOKEN` has these permissions:
+
+- Workers Scripts: Edit
+- Cloudflare Pages: Edit
+- Account Settings: Read
+- Zone - DNS: Edit
+- Zone - Zone: Read
+- Access: Apps and Policies: Edit
 
 ---
 
@@ -304,3 +339,5 @@ Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual
   charts, filters) are implemented with plain vanilla JS in `<script>` blocks.
 - **Git identity**: This repo uses the `JontiH` GitHub account with the `~/.ssh/JontiH` key,
   configured as a local git override (not global). See `git config --local --list`.
+- **Date format from Google Sheets**: Dates arrive as `DD/MM/YYYY`. JavaScript's `new Date()` cannot parse this — use the custom `parseDate()` in `hive-data.astro` which handles it explicitly.
+- **Sheet IDs are not secrets**: `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, etc. are in `wrangler.toml` as `[vars]`, not Cloudflare secrets. Only the Google credentials (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`) are secrets.
