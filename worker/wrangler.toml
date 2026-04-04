@@ -7,6 +7,7 @@ compatibility_date = "2024-01-01"
 
 # Non-secret config — sheet IDs and ranges live here in version control
 [vars]
+CACHE_VER         = "2"
 HIVE_SHEET_ID     = "1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA"
 HIVE_SHEET_RANGE  = "Form responses 1!A:K"
 MEMBERS_SHEET_ID  = "1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ"

@@ -216,10 +216,10 @@ export default {
 
     const path = url.pathname.replace(/\/$/, "");
 
-    // ── Cache key — include sheet ID so changing sheets busts the cache ─
+    // ── Cache key — include version + sheet ID; bump CACHE_VER in wrangler.toml to bust ─
     const sheetId  = path === "/hive-data" ? env.HIVE_SHEET_ID : env.MEMBERS_SHEET_ID;
     const cacheUrl = new URL(request.url);
-    cacheUrl.searchParams.set("_v", sheetId ?? "default");
+    cacheUrl.searchParams.set("_v", `${env.CACHE_VER ?? "1"}-${sheetId ?? "default"}`);
     const cacheKey = new Request(cacheUrl.toString(), request);
     const cache    = caches.default;
     const cached   = await cache.match(cacheKey);
