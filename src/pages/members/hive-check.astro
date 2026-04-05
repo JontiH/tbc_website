@@ -297,11 +297,12 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
       for (const opt of item.options) {
         // Shell carries the SVG filter; pill carries the clip-path.
-        // They must be on separate elements: filter runs before clip-path
-        // in the CSS rendering pipeline, so if both were on the same element
-        // the clip-path would erase the border the filter just created.
+        // Filter is set via inline style so the url('#id') fragment resolves
+        // against the document — external stylesheets can resolve '#id' against
+        // the CSS file URL instead, causing the filter to silently fail.
         const shell = document.createElement("span");
         shell.className = "hc-pill-shell";
+        shell.style.filter = "url('#hc-hex-border')";
 
         const pill = document.createElement("label");
         pill.className = "hc-pill";
@@ -318,6 +319,14 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
         pill.appendChild(document.createTextNode(opt.isOther ? "Other" : opt.value));
         shell.appendChild(pill);
         group.appendChild(shell);
+
+        // Swap filter inline on check/uncheck so fragment URL resolves correctly
+        input.addEventListener("change", () => {
+          group.querySelectorAll(".hc-pill-shell").forEach(s => {
+            s.style.filter = "url('#hc-hex-border')";
+          });
+          if (input.checked) shell.style.filter = "url('#hc-hex-border-active')";
+        });
 
         if (opt.isOther) {
           otherInput = document.createElement("input");
@@ -632,16 +641,10 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     margin-top: 0.25rem;
   }
 
-  /* Shell: holds the SVG border filter — no clip-path here */
+  /* Shell: holds the SVG border filter (set via inline style in JS) */
   .hc-pill-shell {
     display: inline-flex;
-    filter: url('#hc-hex-border');
-    transition: filter 0.12s;
     cursor: pointer;
-  }
-
-  .hc-pill-shell:has(.hc-pill-input:checked) {
-    filter: url('#hc-hex-border-active');
   }
 
   /* Pill: holds the hex clip-path and fill — no filter here */
