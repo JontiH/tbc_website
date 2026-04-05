@@ -174,8 +174,8 @@ function processFormStructure(api) {
       items.push({ ...base, type: q.choiceQuestion.type.toLowerCase(), options });
 
     } else if (q.fileUploadQuestion) {
-      // File uploads can't be submitted via a custom form — flag so frontend can handle gracefully
-      items.push({ ...base, type: "file_upload" });
+      // File uploads not supported — skip entirely
+      continue;
 
     } else {
       items.push({ ...base, type: "unknown" });
