@@ -238,6 +238,23 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     return wrap;
   }
 
+  // ── Read email from Cloudflare Access JWT ───────────────────────────
+  // Cloudflare Access stores a CF_Authorization cookie (not HttpOnly) whose
+  // payload contains the authenticated user's email address.
+  function getCfEmail() {
+    const cookie = document.cookie.split(";").find(c => c.trim().startsWith("CF_Authorization="));
+    if (!cookie) return "";
+    const token = cookie.split("=").slice(1).join("=").trim();
+    const parts = token.split(".");
+    if (parts.length < 2) return "";
+    try {
+      const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+      return JSON.parse(json).email ?? "";
+    } catch {
+      return "";
+    }
+  }
+
   // Maps form question titles → JSON keys the Worker expects
   const TITLE_KEY = {
     "Date of Visit":                                                      "date",
@@ -307,6 +324,9 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       form.querySelector(".hc-invalid")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+
+    // Attach the Cloudflare Access email so it is recorded in the sheet
+    payload.email = getCfEmail();
 
     submitBtn.disabled    = true;
     submitBtn.textContent = "Submitting…";
