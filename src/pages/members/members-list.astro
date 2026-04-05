@@ -26,40 +26,20 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
   <style>
     .members-section { padding: 2rem 1rem; }
-    .members-wrap { max-width: 1400px; margin: 0 auto; }
+    .members-wrap { max-width: 860px; margin: 0 auto; }
     .members-wrap .table-wrap { overflow-x: auto; }
-    .members-wrap table { font-size: 0.82rem; }
+    .members-wrap table { font-size: 0.9rem; }
     .members-wrap thead th {
       padding: 0.6rem 0.75rem;
-      white-space: normal;
-      word-break: break-word;
-      min-width: 80px;
+      white-space: nowrap;
     }
     .members-wrap tbody td {
-      padding: 0.55rem 0.75rem;
+      padding: 0.9rem 0.75rem;
       word-break: break-word;
     }
     /* Give name column a bit more room */
     .members-wrap thead th:first-child,
-    .members-wrap tbody td:first-child { min-width: 120px; }
-    /* Squish committees and swarm brigade to fit content */
-    .members-wrap thead th:nth-child(4),
-    .members-wrap tbody td:nth-child(4),
-    .members-wrap thead th:nth-child(6),
-    .members-wrap tbody td:nth-child(6) { min-width: 0; width: 1%; }
-    /* Thicker rows */
-    .members-wrap tbody td { padding: 0.9rem 0.75rem; }
-    /* Tags for committees and swarm brigade */
-    .cell-tags { display: flex; flex-direction: column; gap: 0.25rem; }
-    .cell-tag {
-      display: inline-block;
-      background: var(--amber-light);
-      color: var(--charcoal);
-      border-radius: 3px;
-      padding: 0.15rem 0.45rem;
-      font-size: 0.78rem;
-      white-space: nowrap;
-    }
+    .members-wrap tbody td:first-child { min-width: 140px; }
   </style>
 
   <section class="members-section">
@@ -97,16 +77,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
         </p>
       </div>
 
-      <!-- Stub notice — remove once Worker/sheet is configured -->
-      <div id="stub-notice" class="card" style="display:none; border-left: 4px solid var(--amber); max-width:560px;">
-        <h4 style="color:var(--amber-dark); margin-bottom:0.5rem;">Schema not yet configured</h4>
-        <p style="margin-bottom:0; font-size:0.92rem;">
-          The members list Google Sheet schema hasn't been provided yet. Once you share the column headers,
-          this page can be fully wired up. The Worker endpoint <code>/members</code> is already scaffolded
-          and just needs the Sheet ID added. See <code>SETUP.md</code> for instructions.
-        </p>
-      </div>
-
     </div>
   </section>
 
@@ -128,12 +98,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
       headers = json.headers ?? [];
       allRows = json.rows   ?? [];
-
-      if (headers.length === 0) {
-        $("loading-state").style.display = "none";
-        $("stub-notice").style.display   = "block";
-        return;
-      }
 
       init();
     } catch (err) {
@@ -199,28 +163,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       const tr = document.createElement("tr");
       headers.forEach(h => {
         const td = document.createElement("td");
-        const val = row[h] ?? "";
-        if ((h === "Swarm Brigade" || h === "Committees") && val.includes(",")) {
-          const wrap = document.createElement("div");
-          wrap.className = "cell-tags";
-          val.split(",").forEach(item => {
-            const tag = document.createElement("span");
-            tag.className = "cell-tag";
-            tag.textContent = item.trim();
-            wrap.appendChild(tag);
-          });
-          td.appendChild(wrap);
-        } else if ((h === "Swarm Brigade" || h === "Committees") && val) {
-          const wrap = document.createElement("div");
-          wrap.className = "cell-tags";
-          const tag = document.createElement("span");
-          tag.className = "cell-tag";
-          tag.textContent = val.trim();
-          wrap.appendChild(tag);
-          td.appendChild(wrap);
-        } else {
-          td.textContent = val;
-        }
+        td.textContent = row[h] ?? "";
         tr.appendChild(td);
       });
       tbody.appendChild(tr);

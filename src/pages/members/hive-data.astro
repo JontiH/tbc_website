@@ -128,11 +128,11 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
                 <th>Date</th>
                 <th>Location</th>
                 <th>Colony</th>
-                <th>Status</th>
+                <th>Comments</th>
                 <th>Mite Count</th>
                 <th>Treatment</th>
                 <th>Feed</th>
-                <th>Comments</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody id="table-body"></tbody>
@@ -808,11 +808,11 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
         <td>${fmtDate(parseDate(r[COL.DATE]))}</td>
         <td>${r[COL.LOCATION] ?? "—"}</td>
         <td>${r[COL.COLONY] ? `Colony ${r[COL.COLONY]}` : "—"}</td>
-        <td>${statusBadge(status)}</td>
+        <td style="max-width:240px; white-space:pre-wrap; font-size:0.85rem;">${r[COL.COMMENTS] ?? ""}</td>
         <td>${r[COL.MITE] ?? "—"}</td>
         <td>${r[COL.TREATMENT] ?? "—"}</td>
         <td>${r[COL.FEED] ?? "—"}</td>
-        <td style="max-width:240px; white-space:pre-wrap; font-size:0.85rem;">${r[COL.COMMENTS] ?? ""}</td>
+        <td>${statusBadge(status)}</td>
       `;
       tableBody.appendChild(tr);
     });
