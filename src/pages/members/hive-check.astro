@@ -1,0 +1,131 @@
+---
+import Base from "../../layouts/Base.astro";
+import Nav from "../../components/Nav.astro";
+import MembersNav from "../../components/MembersNav.astro";
+import Footer from "../../components/Footer.astro";
+
+const currentPath = "/members/hive-check";
+
+const FORM_EMBED = "https://docs.google.com/forms/d/e/1FAIpQLSfwno--WeTl4JwqpPfJZOV2xcFIXBMzUt1MsBEstDqXP9u2Aw/viewform?embedded=true";
+const FORM_LINK  = "https://forms.gle/uDZw6vWgFEjZbbVJA";
+---
+
+<Base
+  title="Hive Check Form"
+  description="Submit a hive visit record for your TBC colony."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Hive Check Form</h1>
+      <p>Record your colony visit — health status, mite counts, treatments, and notes.</p>
+    </div>
+  </div>
+
+  <MembersNav currentPath={currentPath} />
+
+  <section class="section">
+    <div class="container">
+
+      <div class="form-card">
+        <div class="form-card-header">
+          <div>
+            <h2 class="form-card-title">Submit a Visit Record</h2>
+            <p class="form-card-desc">
+              Fill in the form after each hive visit. Submissions go directly to the shared Google Sheet
+              and appear in <a href="/members/hive-data">Hive Data</a> once the cache refreshes (up to 1 hour).
+            </p>
+          </div>
+          <a href={FORM_LINK} target="_blank" rel="noopener" class="btn btn-outline-dark form-external-btn">
+            Open in new tab ↗
+          </a>
+        </div>
+
+        <div class="form-frame-wrap">
+          <iframe
+            src={FORM_EMBED}
+            class="form-frame"
+            frameborder="0"
+            marginheight="0"
+            marginwidth="0"
+            title="TBC Hive Check Form"
+            loading="lazy"
+          >
+            <p>Your browser does not support iframes.
+              <a href={FORM_LINK} target="_blank" rel="noopener">Open the form directly ↗</a>
+            </p>
+          </iframe>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<style>
+  .form-card {
+    max-width: 780px;
+    margin: 0 auto;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  .form-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.5rem 1.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .form-card-title {
+    font-size: 1.15rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .form-card-desc {
+    font-size: 0.88rem;
+    color: var(--charcoal-mid);
+    margin: 0;
+    max-width: 520px;
+  }
+
+  .form-card-desc a {
+    color: var(--amber-dark);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .form-card-desc a:hover { text-decoration: underline; }
+
+  .form-external-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.85rem;
+    align-self: center;
+  }
+
+  .form-frame-wrap {
+    background: #f9f9f9;
+  }
+
+  .form-frame {
+    display: block;
+    width: 100%;
+    height: 920px;
+    border: none;
+  }
+
+  @media (max-width: 600px) {
+    .form-card-header { padding: 1.1rem 1.1rem 1rem; }
+    .form-frame       { height: calc(100vh - 60px); }
+  }
+</style>

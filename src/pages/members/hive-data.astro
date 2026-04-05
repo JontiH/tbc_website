@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import Nav from "../../components/Nav.astro";
+import MembersNav from "../../components/MembersNav.astro";
 import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-data";
@@ -20,6 +21,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       <p>Colony visit records, health status, mite counts, and treatments — filterable by location and colony.</p>
     </div>
   </div>
+
+  <MembersNav currentPath={currentPath} />
 
   <section class="section">
     <div class="container">
@@ -380,8 +383,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     const to   = inpTo.value   ? new Date(inpTo.value   + "T00:00:00") : null;
 
     if (from && to) {
-      const days = (to - from) / 86400000;
-      if (days <= 45) {
+      // Only use monthly view when both dates are in the exact same month
+      const sameMonth = from.getFullYear() === to.getFullYear() &&
+                        from.getMonth()    === to.getMonth();
+      if (sameMonth) {
         calView  = "month";
         calYear  = from.getFullYear();
         calMonth = from.getMonth();
@@ -645,27 +650,39 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
     buildLoopCol($("dp-col-year"), yearLabels, dpDdYear - 2020, idx => {
       dpDdYear = 2020 + idx;
-      dpDdDayClamped();
+      dpUpdateDayDisabled(); // update disabled state only — no DOM rebuild
     });
 
     buildLoopCol($("dp-col-month"), MONTH_NAMES, dpDdMonth, idx => {
       dpDdMonth = idx;
-      dpDdDayClamped();
+      dpUpdateDayDisabled(); // update disabled state only — no DOM rebuild
     });
 
-    const daysInMonth = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
-    const dayLabels   = Array.from({ length: daysInMonth }, (_, i) => String(i + 1));
+    // Day column: always 31 items; days beyond the month's max are disabled.
+    // Never rebuilt — avoids the DOM thrash that caused flickering.
+    const dayLabels = Array.from({ length: 31 }, (_, i) => String(i + 1));
     buildLoopCol($("dp-col-day"), dayLabels, dpDdDay - 1, idx => {
       dpDdDay = idx + 1;
     });
+    dpUpdateDayDisabled();
   }
 
-  function dpDdDayClamped() {
+  // Update day column disabled/selected state without touching the DOM structure.
+  function dpUpdateDayDisabled() {
     const max = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
-    if (dpDdDay > max) dpDdDay = max;
-    // Rebuild day column with new month's day count
-    const dayLabels = Array.from({ length: max }, (_, i) => String(i + 1));
-    buildLoopCol($("dp-col-day"), dayLabels, dpDdDay - 1, idx => { dpDdDay = idx + 1; });
+    // Clamp selected day and smoothly scroll to it if needed
+    if (dpDdDay > max) {
+      dpDdDay = max;
+      const col = $("dp-col-day");
+      const midCopy = Math.floor(DD_COPIES / 2);
+      const snapTop = (midCopy * 31 + (dpDdDay - 1)) * DD_IH - (DD_CH / 2 - DD_IH / 2);
+      col.scrollTo({ top: Math.max(0, snapTop), behavior: "smooth" });
+    }
+    $("dp-col-day").querySelectorAll(".dp-dd-item").forEach(el => {
+      const n = parseInt(el.dataset.i) + 1;
+      el.classList.toggle("dp-dd-disabled", n > max);
+      el.classList.toggle("dp-dd-sel",      n === dpDdDay);
+    });
   }
 
   $("dp-panel").addEventListener("click", e => e.stopPropagation());
@@ -1455,6 +1472,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     flex-shrink: 0;
   }
   .dp-dd-item:hover { background: #FDE9C0; }
+  .dp-dd-disabled { color: #ccc !important; pointer-events: none; }
   .dp-dd-sel {
     background: #F5A623;
     color: #fff;

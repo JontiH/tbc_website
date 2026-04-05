@@ -1,0 +1,64 @@
+---
+const { currentPath } = Astro.props;
+
+const links = [
+  { href: "/members/hive-data",    label: "Hive Data" },
+  { href: "/members/hive-check",   label: "Hive Check Form" },
+  { href: "/members/members-list", label: "Members List" },
+];
+---
+
+<nav class="members-subnav" aria-label="Members area navigation">
+  <div class="container members-subnav-inner">
+    {links.map(l => (
+      <a
+        href={l.href}
+        class:list={["members-subnav-link", { "members-subnav-active": currentPath === l.href }]}
+        aria-current={currentPath === l.href ? "page" : undefined}
+      >
+        {l.label}
+      </a>
+    ))}
+  </div>
+</nav>
+
+<style>
+  .members-subnav {
+    background: var(--charcoal);
+    border-bottom: 2px solid var(--amber);
+  }
+
+  .members-subnav-inner {
+    display: flex;
+    gap: 0;
+    justify-content: flex-end;
+  }
+
+  .members-subnav-link {
+    display: inline-block;
+    padding: 0.55rem 1.15rem;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px; /* sit on top of the nav border */
+    transition: color 0.15s, border-color 0.15s;
+    letter-spacing: 0.01em;
+  }
+
+  .members-subnav-link:hover {
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: rgba(245, 166, 35, 0.45);
+  }
+
+  .members-subnav-active {
+    color: #F5A623 !important;
+    border-bottom-color: #F5A623 !important;
+  }
+
+  @media (max-width: 540px) {
+    .members-subnav-inner { justify-content: center; }
+    .members-subnav-link  { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+  }
+</style>
