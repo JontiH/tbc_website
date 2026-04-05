@@ -28,7 +28,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       <div class="hc-wrap">
 
         <div id="hc-loading" class="loading">Loading form…</div>
-        <div id="hc-error"   style="display:none;" class="error-msg"></div>
+        <div id="hc-error" style="display:none;" class="error-msg"></div>
 
         <!-- Form is rendered here by JS -->
         <div id="hc-form-wrap" style="display:none;"></div>
@@ -36,8 +36,8 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
         <!-- Success state -->
         <div id="hc-success" style="display:none;" class="hc-success">
           <div class="hc-success-icon">✓</div>
-          <h2>Submitted!</h2>
-          <p>Your hive check has been recorded. It will appear in
+          <h2>Check recorded!</h2>
+          <p>Your hive visit has been saved. It will appear in
             <a href="/members/hive-data">Hive Data</a> within one hour.</p>
           <button id="hc-another" class="btn btn-primary">Submit another check</button>
         </div>
@@ -66,7 +66,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       formStructure = await res.json();
       loadingEl.style.display = "none";
       renderForm();
-      formWrap.style.display  = "block";
+      formWrap.style.display = "block";
     } catch (err) {
       loadingEl.style.display = "none";
       errorEl.style.display   = "block";
@@ -75,7 +75,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   }
 
   // ── Section groupings ────────────────────────────────────────────────
-  // Maps question title → section heading shown in the form
   const TITLE_SECTION = {
     "Date of Visit":                                                       "Visit Details",
     "Where is the hive located?":                                          "Visit Details",
@@ -87,7 +86,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     "additional comments for this colony":                                 "Notes",
   };
 
-  // Friendly short labels to replace verbose Google Form question text
+  // Friendly short labels replacing verbose Google Form question text
   const TITLE_LABEL = {
     "Date of Visit":                                                       "Date of Visit",
     "Where is the hive located?":                                          "Hive Location",
@@ -99,7 +98,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     "additional comments for this colony":                                 "Additional Comments",
   };
 
-  // Hint text shown below the label
+  // Helper hint text shown below a label
   const TITLE_HINT = {
     "Which Colony are you checking (A,B,C...)?":
       "e.g. A, B, C — as labelled on your hive",
@@ -107,34 +106,50 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       "Mites per 100 bees. Leave blank if not checked today.",
   };
 
+  // ── Read email from Cloudflare Access JWT ────────────────────────────
+  function getCfEmail() {
+    const cookie = document.cookie.split(";").find(c => c.trim().startsWith("CF_Authorization="));
+    if (!cookie) return "";
+    const token = cookie.split("=").slice(1).join("=").trim();
+    const parts = token.split(".");
+    if (parts.length < 2) return "";
+    try {
+      const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+      return JSON.parse(json).email ?? "";
+    } catch {
+      return "";
+    }
+  }
+
   // ── Render form from structure ───────────────────────────────────────
   function renderForm() {
     const { description, items } = formStructure;
 
-    // Drop any remaining unsupported types (file_upload filtered server-side, but be safe)
     const visibleItems = items.filter(i => i.type !== "file_upload" && i.type !== "unknown");
 
     const form = document.createElement("form");
     form.className  = "hc-form";
     form.noValidate = true;
 
-    // Optional description from Google Form
+    // Optional Google Form description
     if (description) {
-      const hdr = document.createElement("div");
-      hdr.className = "hc-form-header";
-      hdr.innerHTML = `<p class="hc-form-desc">${escHtml(description)}</p>`;
-      form.appendChild(hdr);
+      const banner = document.createElement("div");
+      banner.className = "hc-description";
+      banner.innerHTML = `<p>${escHtml(description)}</p>`;
+      form.appendChild(banner);
     }
 
-    // Render questions grouped into sections in their original order
-    let currentSection = null;
-    let sectionBody    = null;
+    // Render questions grouped into numbered section cards
+    let currentSection  = null;
+    let sectionBody     = null;
+    let sectionCount    = 0;
 
     for (const item of visibleItems) {
       const section = TITLE_SECTION[item.title] ?? "Other";
 
       if (section !== currentSection) {
         currentSection = section;
+        sectionCount++;
 
         const sectionEl = document.createElement("div");
         sectionEl.className = "hc-section";
@@ -142,7 +157,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
         const sectionHdr = document.createElement("div");
         sectionHdr.className = "hc-section-header";
         sectionHdr.innerHTML =
-          `<span class="hc-section-accent"></span>` +
+          `<span class="hc-section-num">${sectionCount}</span>` +
           `<span class="hc-section-title">${escHtml(section)}</span>`;
         sectionEl.appendChild(sectionHdr);
 
@@ -156,22 +171,25 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       sectionBody.appendChild(buildQuestion(item));
     }
 
-    // Submit footer
-    const footer = document.createElement("div");
-    footer.className = "hc-form-footer";
+    // Submit block
+    const submitBlock = document.createElement("div");
+    submitBlock.className = "hc-submit-block";
 
     const submit = document.createElement("button");
     submit.type        = "submit";
     submit.className   = "btn btn-primary hc-submit";
     submit.textContent = "Submit hive check";
-    footer.appendChild(submit);
+    submitBlock.appendChild(submit);
 
-    const note = document.createElement("p");
-    note.className   = "hc-submit-note";
-    note.textContent = "Responses are saved directly to the TBC hive data sheet.";
-    footer.appendChild(note);
+    const email = getCfEmail();
+    if (email) {
+      const who = document.createElement("p");
+      who.className   = "hc-submitting-as";
+      who.innerHTML   = `Submitting as <strong>${escHtml(email)}</strong>`;
+      submitBlock.appendChild(who);
+    }
 
-    form.appendChild(footer);
+    form.appendChild(submitBlock);
 
     form.addEventListener("submit", handleSubmit);
     formWrap.innerHTML = "";
@@ -189,7 +207,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     wrap.dataset.entryId = item.entryId;
     wrap.dataset.type    = item.type;
 
-    // Friendly label
     const labelText = TITLE_LABEL[item.title] ?? item.title;
     const label = document.createElement("div");
     label.className = "hc-label";
@@ -197,7 +214,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       + (item.required ? ' <span class="hc-req" aria-label="required">*</span>' : "");
     wrap.appendChild(label);
 
-    // Hint text
     const hint = TITLE_HINT[item.title];
     if (hint) {
       const hintEl = document.createElement("p");
@@ -225,7 +241,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       const ta = document.createElement("textarea");
       ta.className = "hc-textarea";
       ta.required  = item.required;
-      ta.rows      = 4;
+      ta.rows      = 5;
       wrap.appendChild(ta);
 
     } else if (item.type === "radio" || item.type === "checkbox") {
@@ -252,11 +268,11 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
         if (opt.isOther) {
           otherInput = document.createElement("input");
-          otherInput.type                  = "text";
-          otherInput.className             = "hc-other-input";
-          otherInput.placeholder           = "Please specify";
-          otherInput.disabled              = true;
-          otherInput.dataset.forEntry      = item.entryId;
+          otherInput.type             = "text";
+          otherInput.className        = "hc-other-input";
+          otherInput.placeholder      = "Please specify";
+          otherInput.disabled         = true;
+          otherInput.dataset.forEntry = item.entryId;
 
           input.addEventListener("change", () => {
             otherInput.disabled = !input.checked;
@@ -270,22 +286,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     }
 
     return wrap;
-  }
-
-  // ── Read email from Cloudflare Access JWT ────────────────────────────
-  // CF_Authorization is a non-HttpOnly cookie whose JWT payload contains email.
-  function getCfEmail() {
-    const cookie = document.cookie.split(";").find(c => c.trim().startsWith("CF_Authorization="));
-    if (!cookie) return "";
-    const token = cookie.split("=").slice(1).join("=").trim();
-    const parts = token.split(".");
-    if (parts.length < 2) return "";
-    try {
-      const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-      return JSON.parse(json).email ?? "";
-    } catch {
-      return "";
-    }
   }
 
   // Maps form question titles → JSON keys the Worker expects
@@ -356,7 +356,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       return;
     }
 
-    // Attach the Cloudflare Access email so it is recorded in the sheet
     payload.email = getCfEmail();
 
     submitBtn.disabled    = true;
@@ -385,74 +384,83 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     }
   }
 
-  // ── "Submit another" button ──────────────────────────────────────────
   $("hc-another").addEventListener("click", () => {
     successEl.style.display = "none";
     renderForm();
     formWrap.style.display  = "block";
+    formWrap.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   init();
 </script>
 
 <style>
+  /* ── Page wrapper ────────────────────────────────────────────────── */
   .hc-wrap {
-    max-width: 700px;
+    max-width: 680px;
     margin: 0 auto;
   }
 
-  /* ── Form card ───────────────────────────────────────────────────── */
+  /* ── Form: flex column of section cards ─────────────────────────── */
   .hc-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  /* Optional description banner from Google Form */
+  .hc-description {
+    padding: 1rem 1.5rem;
+    background: var(--amber-light);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    color: var(--charcoal-mid);
+    line-height: 1.55;
+  }
+  .hc-description p { margin: 0; }
+
+  /* ── Section cards ───────────────────────────────────────────────── */
+  .hc-section {
     background: var(--white);
     border: 1px solid var(--border);
-    border-top: 4px solid var(--amber);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow);
     overflow: hidden;
-  }
-
-  .hc-form-header {
-    padding: 1.1rem 1.75rem;
-    background: var(--cream);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .hc-form-desc {
-    font-size: 0.88rem;
-    color: var(--charcoal-mid);
-    margin: 0;
-    line-height: 1.5;
-  }
-
-  /* ── Sections ────────────────────────────────────────────────────── */
-  .hc-section + .hc-section {
-    border-top: 1px solid var(--border);
   }
 
   .hc-section-header {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
-    padding: 0.7rem 1.75rem;
+    gap: 0.85rem;
+    padding: 1rem 1.75rem;
     background: var(--cream);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
   }
 
-  .hc-section-accent {
-    display: inline-block;
-    width: 3px;
-    height: 15px;
+  /* Numbered amber circle badge */
+  .hc-section-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
     background: var(--amber);
-    border-radius: 2px;
+    color: var(--white);
+    font-size: 0.78rem;
+    font-weight: 800;
+    border-radius: 50%;
     flex-shrink: 0;
+    line-height: 1;
   }
 
   .hc-section-title {
-    font-size: 0.7rem;
+    font-size: 0.82rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--charcoal-mid);
+    letter-spacing: 0.09em;
+    color: var(--charcoal);
   }
 
   .hc-section-body {
@@ -461,94 +469,115 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   /* ── Questions ───────────────────────────────────────────────────── */
   .hc-question {
-    padding: 1.1rem 1.75rem;
-    border-bottom: 1px solid #f0e8d8;
-    transition: background 0.1s;
+    padding: 1.5rem 1.75rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
   }
 
-  .hc-question:last-child { border-bottom: none; }
+  .hc-question:last-child {
+    border-bottom: none;
+  }
 
-  .hc-question.hc-invalid { background: #fff5f5; }
-  .hc-question.hc-invalid .hc-label { color: var(--status-bad); }
+  .hc-question.hc-invalid {
+    background: #fff5f5;
+  }
+
+  .hc-question.hc-invalid .hc-label {
+    color: var(--status-bad);
+  }
+
   .hc-question.hc-invalid .hc-input,
-  .hc-question.hc-invalid .hc-textarea { border-color: var(--status-bad); }
+  .hc-question.hc-invalid .hc-textarea {
+    border-color: var(--status-bad);
+    box-shadow: 0 0 0 3px rgba(198,40,40,0.08);
+  }
 
+  /* ── Labels ──────────────────────────────────────────────────────── */
   .hc-label {
-    font-size: 0.88rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--charcoal);
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.45rem;
     line-height: 1.4;
   }
 
-  .hc-req { color: var(--amber-dark); margin-left: 2px; }
+  .hc-req {
+    color: var(--amber-dark);
+    margin-left: 3px;
+  }
 
   .hc-hint {
-    font-size: 0.77rem;
+    font-size: 0.82rem;
     color: var(--charcoal-mid);
-    margin: 0 0 0.55rem;
-    line-height: 1.4;
+    margin: 0 0 0.65rem;
+    line-height: 1.45;
   }
 
   /* ── Text inputs ─────────────────────────────────────────────────── */
   .hc-input,
   .hc-textarea {
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 0.6rem 0.85rem;
     border: 1.5px solid var(--border);
-    border-radius: 6px;
+    border-radius: 7px;
     font-family: inherit;
-    font-size: 0.9rem;
+    font-size: 0.93rem;
     color: var(--charcoal);
     background: #fff;
     box-sizing: border-box;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
-  .hc-input-short { max-width: 240px; }
+  .hc-input-short { max-width: 260px; }
 
   .hc-input:focus,
   .hc-textarea:focus {
     outline: none;
     border-color: var(--amber);
-    box-shadow: 0 0 0 3px rgba(245,166,35,0.15);
+    box-shadow: 0 0 0 3px rgba(245,166,35,0.18);
   }
 
-  .hc-textarea { resize: vertical; min-height: 90px; }
+  .hc-textarea {
+    resize: vertical;
+    min-height: 110px;
+    line-height: 1.55;
+  }
 
   /* ── Pill radio / checkbox ───────────────────────────────────────── */
   .hc-pill-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 0.15rem;
+    gap: 0.5rem;
+    margin-top: 0.2rem;
   }
 
   .hc-pill {
     display: inline-flex;
     align-items: center;
-    padding: 0.38rem 1rem;
+    padding: 0.45rem 1.1rem;
     border: 1.5px solid var(--border);
     border-radius: 999px;
-    font-size: 0.85rem;
+    font-size: 0.88rem;
     color: var(--charcoal);
     cursor: pointer;
     user-select: none;
     background: var(--white);
-    transition: border-color 0.12s, background 0.12s, color 0.12s;
+    transition: border-color 0.12s, background 0.12s, color 0.12s, box-shadow 0.12s;
+    line-height: 1;
   }
 
   .hc-pill:hover {
     border-color: var(--amber);
     background: var(--amber-light);
+    box-shadow: 0 1px 4px rgba(245,166,35,0.2);
   }
 
-  /* Selected state via :has() — supported in all modern browsers */
   .hc-pill:has(.hc-pill-input:checked) {
     background: var(--amber);
     border-color: var(--amber-dark);
     color: var(--white);
     font-weight: 600;
+    box-shadow: 0 2px 6px rgba(212,136,26,0.35);
   }
 
   .hc-pill-input {
@@ -559,17 +588,17 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     pointer-events: none;
   }
 
-  /* "Other" text input that appears when Other pill is selected */
+  /* "Other" free-text input */
   .hc-other-input {
     display: block;
     width: 100%;
-    max-width: 360px;
-    margin-top: 0.55rem;
-    padding: 0.45rem 0.75rem;
+    max-width: 380px;
+    margin-top: 0.65rem;
+    padding: 0.55rem 0.85rem;
     border: 1.5px solid var(--border);
-    border-radius: 6px;
+    border-radius: 7px;
     font-family: inherit;
-    font-size: 0.88rem;
+    font-size: 0.9rem;
     color: var(--charcoal);
     background: #fff;
     box-sizing: border-box;
@@ -585,33 +614,45 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   .hc-other-input:focus {
     outline: none;
     border-color: var(--amber);
-    box-shadow: 0 0 0 3px rgba(245,166,35,0.15);
+    box-shadow: 0 0 0 3px rgba(245,166,35,0.18);
   }
 
-  /* ── Form footer ─────────────────────────────────────────────────── */
-  .hc-form-footer {
-    padding: 1.25rem 1.75rem;
-    background: var(--cream);
-    border-top: 1px solid var(--border);
+  /* ── Submit block ────────────────────────────────────────────────── */
+  .hc-submit-block {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
     flex-wrap: wrap;
+    padding: 0.5rem 0 1rem;
   }
 
-  .hc-submit { padding: 0.65rem 1.75rem; font-size: 0.95rem; }
-  .hc-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+  .hc-submit {
+    padding: 0.75rem 2rem;
+    font-size: 0.97rem;
+    letter-spacing: 0.01em;
+  }
 
-  .hc-submit-note {
-    font-size: 0.8rem;
+  .hc-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .hc-submitting-as {
+    font-size: 0.82rem;
     color: var(--charcoal-mid);
     margin: 0;
+    line-height: 1.4;
+  }
+
+  .hc-submitting-as strong {
+    color: var(--charcoal);
+    font-weight: 600;
   }
 
   /* ── Success card ────────────────────────────────────────────────── */
   .hc-success {
     text-align: center;
-    padding: 3rem 2rem;
+    padding: 3.5rem 2rem;
     background: var(--white);
     border: 1px solid var(--border);
     border-top: 4px solid var(--status-good);
@@ -620,36 +661,43 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   }
 
   .hc-success-icon {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     background: var(--status-good-bg);
     color: var(--status-good);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 700;
-    margin: 0 auto 1rem;
+    margin: 0 auto 1.25rem;
   }
 
-  .hc-success h2 { margin-bottom: 0.5rem; }
+  .hc-success h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.6rem;
+  }
 
   .hc-success p {
     color: var(--charcoal-mid);
-    font-size: 0.92rem;
-    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+    margin-bottom: 1.75rem;
   }
 
-  .hc-success a { color: var(--amber-dark); font-weight: 600; text-decoration: none; }
+  .hc-success a {
+    color: var(--amber-dark);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
   .hc-success a:hover { text-decoration: underline; }
 
   /* ── Mobile ──────────────────────────────────────────────────────── */
   @media (max-width: 600px) {
-    .hc-question       { padding: 1rem 1.1rem; }
-    .hc-section-header { padding: 0.6rem 1.1rem; }
-    .hc-form-header    { padding: 1rem 1.1rem; }
-    .hc-form-footer    { padding: 1rem 1.1rem; }
+    .hc-question       { padding: 1.25rem 1.25rem; }
+    .hc-section-header { padding: 0.85rem 1.25rem; }
     .hc-input-short    { max-width: 100%; }
+    .hc-submit-block   { padding: 0.25rem 0 0.75rem; }
   }
 </style>
