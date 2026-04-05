@@ -30,7 +30,9 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://torontob
     <meta property="og:type" content="website" />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- Fonts: single request for Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
