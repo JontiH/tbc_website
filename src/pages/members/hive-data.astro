@@ -5,7 +5,6 @@ import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-data";
 
-// The Worker URL — set via env var at build time, fallback for local dev
 const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev";
 ---
 
@@ -65,16 +64,35 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       <div id="loading-state" class="loading">Loading hive data...</div>
       <div id="error-state" class="error-msg" style="display:none;"></div>
 
-      <!-- Charts -->
+      <!-- Charts area -->
       <div id="charts-area" style="display:none;">
+
+        <!-- Visit Calendar -->
         <div class="chart-container" style="margin-bottom: 1.25rem;">
-          <div class="chart-title">Hive Status Over Time</div>
-          <canvas id="chart-status-time" height="90"></canvas>
+          <div class="cal-nav-header">
+            <span class="chart-title" style="margin:0;">Hive Visit Calendar</span>
+            <div class="cal-controls">
+              <button id="cal-prev" class="btn btn-outline-dark btn-sm" aria-label="Previous">&#8249;</button>
+              <span id="cal-label" class="cal-label"></span>
+              <button id="cal-next" class="btn btn-outline-dark btn-sm" aria-label="Next">&#8250;</button>
+              <button id="cal-toggle" class="btn btn-outline-dark btn-sm">Monthly View</button>
+            </div>
+          </div>
+          <div id="calendar-body"></div>
+          <div class="cal-legend">
+            <span><span class="cal-dot-demo" style="background:#2E7D32;"></span> Strong</span>
+            <span><span class="cal-dot-demo" style="background:#F57F17;"></span> Neutral</span>
+            <span><span class="cal-dot-demo" style="background:#C62828;"></span> Weak</span>
+            <span style="color:var(--charcoal-mid); font-style:italic;">Click a square to jump to that visit</span>
+          </div>
         </div>
+
+        <!-- Mite chart -->
         <div id="mite-chart-wrap" class="chart-container" style="display:none; margin-bottom: 0;">
           <div class="chart-title">Mite Count Over Time</div>
           <canvas id="chart-mites" height="90"></canvas>
         </div>
+
       </div>
 
       <!-- Summary row -->
@@ -141,21 +159,17 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
   // ── Status normalisation ─────────────────────────────────────────────
   // Sheet values: "weak👎"  "neutral 👋"  "strong 👍"
+  // Anything unrecognised defaults to neutral
   function normaliseStatus(raw) {
-    if (!raw) return "unknown";
+    if (!raw) return "neutral";
     const s = raw.toLowerCase();
     if (s.includes("strong")) return "strong";
-    if (s.includes("neutral")) return "neutral";
-    if (s.includes("weak")) return "weak";
-    return "unknown";
-  }
-
-  function statusScore(status) {
-    return { strong: 3, neutral: 2, weak: 1 }[status] ?? null;
+    if (s.includes("weak"))   return "weak";
+    return "neutral"; // catches "neutral" and any unknown/blank values
   }
 
   function statusLabel(status) {
-    return { strong: "Strong 👍", neutral: "Neutral 👋", weak: "Weak 👎", unknown: "Unknown" }[status] ?? "Unknown";
+    return { strong: "Strong 👍", neutral: "Neutral 👋", weak: "Weak 👎" }[status] ?? "Neutral 👋";
   }
 
   function statusBadge(status) {
@@ -163,11 +177,13 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       strong:  ["badge-good", "Strong 👍"],
       neutral: ["badge-mid",  "Neutral 👋"],
       weak:    ["badge-bad",  "Weak 👎"],
-      unknown: ["badge-unknown", "Unknown"],
     };
-    const [cls, label] = map[status] ?? map.unknown;
+    const [cls, label] = map[status] ?? map.neutral;
     return `<span class="badge ${cls}">${label}</span>`;
   }
+
+  // ── Status colours ───────────────────────────────────────────────────
+  const STATUS_COL = { strong: "#2E7D32", neutral: "#F57F17", weak: "#C62828" };
 
   // ── Date helpers ─────────────────────────────────────────────────────
   function parseDate(val) {
@@ -179,7 +195,9 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       return isNaN(d.getTime()) ? null : d;
     }
     const d = new Date(val);
-    return isNaN(d.getTime()) ? null : d;
+    // Reject invalid or absurdly old dates (catches epoch / bad parses)
+    if (isNaN(d.getTime()) || d.getFullYear() < 2000) return null;
+    return d;
   }
 
   function fmtDate(d) {
@@ -187,26 +205,33 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     return d.toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
   }
 
+  function dateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   // ── State ────────────────────────────────────────────────────────────
-  let allRows = [];
-  let charts  = {};
+  let allRows  = [];
+  let charts   = {};
+  let calView  = "year";   // "year" | "month"
+  let calYear  = new Date().getFullYear();
+  let calMonth = new Date().getMonth();
 
   // ── DOM refs ─────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
-  const selLocation  = $("filter-location");
-  const selColony    = $("filter-colony");
-  const inpFrom      = $("filter-date-from");
-  const inpTo        = $("filter-date-to");
-  const selStatus    = $("filter-status");
-  const btnReset     = $("filter-reset");
-  const loadingEl    = $("loading-state");
-  const errorEl      = $("error-state");
-  const chartsArea   = $("charts-area");
-  const miteWrap     = $("mite-chart-wrap");
-  const summaryRow   = $("summary-row");
-  const tableArea    = $("table-area");
-  const tableBody    = $("table-body");
-  const tableEmpty   = $("table-empty");
+  const selLocation = $("filter-location");
+  const selColony   = $("filter-colony");
+  const inpFrom     = $("filter-date-from");
+  const inpTo       = $("filter-date-to");
+  const selStatus   = $("filter-status");
+  const btnReset    = $("filter-reset");
+  const loadingEl   = $("loading-state");
+  const errorEl     = $("error-state");
+  const chartsArea  = $("charts-area");
+  const miteWrap    = $("mite-chart-wrap");
+  const summaryRow  = $("summary-row");
+  const tableArea   = $("table-area");
+  const tableBody   = $("table-body");
+  const tableEmpty  = $("table-empty");
 
   // ── Fetch ────────────────────────────────────────────────────────────
   async function fetchData() {
@@ -214,7 +239,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       const res = await fetch(`${WORKER_URL}/hive-data`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      // Assign a stable _id to each row for chart→table linking
       allRows = (json.rows ?? []).map((r, i) => ({ ...r, _id: i }));
       init();
     } catch (err) {
@@ -224,11 +248,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     }
   }
 
-  // ── Initialise filters & render ──────────────────────────────────────
+  // ── Initialise ───────────────────────────────────────────────────────
   function init() {
     loadingEl.style.display = "none";
 
-    // Populate location dropdown
     const locations = [...new Set(allRows.map(r => r[COL.LOCATION]).filter(Boolean))].sort();
     locations.forEach(loc => {
       const opt = document.createElement("option");
@@ -237,7 +260,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       selLocation.appendChild(opt);
     });
 
-    // Default to current calendar year
     const year = new Date().getFullYear();
     inpFrom.value = `${year}-01-01`;
     inpTo.value   = `${year}-12-31`;
@@ -253,16 +275,14 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   function getFiltered() {
     const loc      = selLocation.value;
     const colony   = selColony.value;
-    const from     = inpFrom.value ? new Date(inpFrom.value)                 : null;
-    const to       = inpTo.value   ? new Date(inpTo.value + "T23:59:59")     : null;
+    const from     = inpFrom.value ? new Date(inpFrom.value)             : null;
+    const to       = inpTo.value   ? new Date(inpTo.value + "T23:59:59") : null;
     const statFilt = selStatus.value;
 
     return allRows.filter(r => {
       if (loc    && r[COL.LOCATION] !== loc)    return false;
       if (colony && r[COL.COLONY]   !== colony) return false;
-      if (statFilt) {
-        if (normaliseStatus(r[COL.STATUS]) !== statFilt) return false;
-      }
+      if (statFilt && normaliseStatus(r[COL.STATUS]) !== statFilt) return false;
       const d = parseDate(r[COL.DATE]);
       if (from && d && d < from) return false;
       if (to   && d && d > to)   return false;
@@ -270,7 +290,32 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     });
   }
 
-  // ── Colony dropdown updates based on location selection ─────────────
+  // ── Update calendar year/month from date filter ───────────────────────
+  function updateCalFromFilter() {
+    const from = inpFrom.value ? new Date(inpFrom.value) : null;
+    const to   = inpTo.value   ? new Date(inpTo.value)   : null;
+
+    if (from && to) {
+      const days = (to - from) / 86400000;
+      if (days <= 45) {
+        // Tight range → zoom to that month
+        calView  = "month";
+        calYear  = from.getFullYear();
+        calMonth = from.getMonth();
+      } else {
+        calView = "year";
+        calYear = from.getFullYear();
+      }
+    } else if (from) {
+      calYear = from.getFullYear();
+    } else {
+      calView  = "year";
+      calYear  = new Date().getFullYear();
+      calMonth = new Date().getMonth();
+    }
+  }
+
+  // ── Colony dropdown updates based on location ─────────────────────────
   selLocation.addEventListener("change", () => {
     const loc = selLocation.value;
     const prevColony = selColony.value;
@@ -291,10 +336,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     render();
   });
 
-  selColony.addEventListener("change",  render);
-  inpFrom.addEventListener("change",    render);
-  inpTo.addEventListener("change",      render);
-  selStatus.addEventListener("change",  render);
+  selColony.addEventListener("change", render);
+  inpFrom.addEventListener("change",   () => { updateCalFromFilter(); render(); });
+  inpTo.addEventListener("change",     () => { updateCalFromFilter(); render(); });
+  selStatus.addEventListener("change", render);
 
   btnReset.addEventListener("click", () => {
     selLocation.value = "";
@@ -302,52 +347,77 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     inpFrom.value     = "";
     inpTo.value       = "";
     selStatus.value   = "";
+    calView  = "year";
+    calYear  = new Date().getFullYear();
+    calMonth = new Date().getMonth();
     selLocation.dispatchEvent(new Event("change"));
   });
 
-  // ── Scroll to table row and flash it ────────────────────────────────
-  function scrollToRow(_id) {
-    const tr = document.getElementById("entry-" + _id);
-    if (!tr) return;
-    tr.scrollIntoView({ behavior: "smooth", block: "center" });
-    tr.classList.remove("row-highlight");
-    // Force reflow so removing+re-adding the class re-triggers animation
-    void tr.offsetWidth;
-    tr.classList.add("row-highlight");
+  // ── Calendar nav buttons ─────────────────────────────────────────────
+  $("cal-prev").addEventListener("click", () => {
+    if (calView === "year") { calYear--; }
+    else { calMonth--; if (calMonth < 0)  { calMonth = 11; calYear--; } }
+    renderCalendar(getFiltered());
+  });
+  $("cal-next").addEventListener("click", () => {
+    if (calView === "year") { calYear++; }
+    else { calMonth++; if (calMonth > 11) { calMonth = 0;  calYear++; } }
+    renderCalendar(getFiltered());
+  });
+  $("cal-toggle").addEventListener("click", () => {
+    if (calView === "year") {
+      calView  = "month";
+      // Default to the first month that has visits in the current year, or current month
+      calMonth = new Date().getMonth();
+    } else {
+      calView = "year";
+    }
+    renderCalendar(getFiltered());
+  });
+
+  // ── Scroll to table rows and flash them ──────────────────────────────
+  function scrollToRows(ids) {
+    if (!ids.length) return;
+    const trs = ids.map(id => document.getElementById("entry-" + id)).filter(Boolean);
+    if (!trs.length) return;
+    trs[0].scrollIntoView({ behavior: "smooth", block: "center" });
+    trs.forEach(tr => {
+      tr.classList.remove("row-highlight");
+      void tr.offsetWidth; // force reflow to re-trigger animation
+      tr.classList.add("row-highlight");
+    });
   }
 
-  // ── Main render ──────────────────────────────────────────────────────
+  // ── Main render ───────────────────────────────────────────────────────
   function render() {
     const rows = getFiltered();
     renderSummary(rows);
-    // renderTable returns the sorted order so renderCharts can reference row IDs
-    const sortedRows = renderTable(rows);
-    renderCharts(rows, sortedRows);
+    renderTable(rows);
+    renderCalendar(rows);
+    renderMiteChart(rows);
   }
 
-  // ── Summary ──────────────────────────────────────────────────────────
+  // ── Summary ───────────────────────────────────────────────────────────
   function renderSummary(rows) {
     $("stat-visits").textContent    = rows.length;
     $("stat-colonies").textContent  = new Set(rows.map(r => r[COL.COLONY])).size;
     $("stat-locations").textContent = new Set(rows.map(r => r[COL.LOCATION])).size;
-
     const mites = rows.map(r => parseFloat(r[COL.MITE])).filter(n => !isNaN(n));
     $("stat-mite-avg").textContent = mites.length
       ? (mites.reduce((a, b) => a + b, 0) / mites.length).toFixed(1)
       : "—";
   }
 
-  // ── Table — returns sorted rows (newest first) ───────────────────────
+  // ── Table ─────────────────────────────────────────────────────────────
   function renderTable(rows) {
     tableBody.innerHTML = "";
 
     if (rows.length === 0) {
       tableEmpty.style.display = "block";
-      return [];
+      return;
     }
     tableEmpty.style.display = "none";
 
-    // Sort newest first
     const sorted = [...rows].sort((a, b) => {
       const da = parseDate(a[COL.DATE]);
       const db = parseDate(b[COL.DATE]);
@@ -373,105 +443,146 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       `;
       tableBody.appendChild(tr);
     });
-
-    return sorted;
   }
 
-  // ── Charts ───────────────────────────────────────────────────────────
-  async function renderCharts(rows, sortedRows) {
+  // ── Calendar ─────────────────────────────────────────────────────────
+
+  function buildVisitMap(rows) {
+    // "YYYY-MM-DD" → { strong: [_id,...], neutral: [...], weak: [...] }
+    const map = new Map();
+    rows.forEach(r => {
+      const d = parseDate(r[COL.DATE]);
+      if (!d) return;
+      const key = dateKey(d);
+      if (!map.has(key)) map.set(key, { strong: [], neutral: [], weak: [] });
+      const norm = normaliseStatus(r[COL.STATUS]);
+      map.get(key)[norm].push(r._id);
+    });
+    return map;
+  }
+
+  function renderDots(buckets, mini) {
+    const entries = Object.entries(buckets).filter(([, ids]) => ids.length > 0);
+    if (!entries.length) return "";
+    const cls = mini ? "cal-dots cal-dots-mini" : "cal-dots";
+    let html = `<div class="${cls}">`;
+    for (const [status, ids] of entries) {
+      const count = ids.length;
+      html += `<span class="cal-dot" style="background:${STATUS_COL[status]}" `
+            + `data-ids="${ids.join(",")}" `
+            + `title="${statusLabel(status)}${count > 1 ? " ×" + count : ""}">`
+            + (count > 1 ? count : "")
+            + `</span>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function renderMonthMini(year, month, visitMap, today, from, to) {
+    const HEADS = ["M", "T", "W", "T", "F", "S", "S"];
+    const name  = new Date(year, month).toLocaleDateString("en-CA", { month: "short" });
+    const days  = new Date(year, month + 1, 0).getDate();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+
+    let html = `<div class="cal-month"><div class="cal-month-name">${name}</div>`;
+    html += `<div class="cal-grid-mini">`;
+    HEADS.forEach(h => { html += `<div class="cal-dh">${h}</div>`; });
+    for (let i = 0; i < offset; i++) html += `<div class="cal-day-mini cal-pad"></div>`;
+
+    for (let day = 1; day <= days; day++) {
+      const date = new Date(year, month, day);
+      const key  = dateKey(date);
+      const vis  = visitMap.get(key);
+      const future  = date > today;
+      const inRange = (!from || date >= from) && (!to || date <= to);
+
+      let cls = "cal-day-mini";
+      if (future)        cls += " cal-future";
+      else if (!inRange) cls += " cal-grey";
+
+      html += `<div class="${cls}">`;
+      if (vis && inRange && !future) html += renderDots(vis, true);
+      html += `</div>`;
+    }
+
+    html += `</div></div>`;
+    return html;
+  }
+
+  function renderMonthFull(year, month, visitMap, today, from, to) {
+    const HEADS  = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const days   = new Date(year, month + 1, 0).getDate();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+
+    let html = `<div class="cal-grid-full">`;
+    HEADS.forEach(h => { html += `<div class="cal-dh cal-dh-full">${h}</div>`; });
+    for (let i = 0; i < offset; i++) html += `<div class="cal-day-full cal-pad"></div>`;
+
+    for (let day = 1; day <= days; day++) {
+      const date = new Date(year, month, day);
+      const key  = dateKey(date);
+      const vis  = visitMap.get(key);
+      const future  = date > today;
+      const inRange = (!from || date >= from) && (!to || date <= to);
+
+      let cls = "cal-day-full";
+      if (future)        cls += " cal-future";
+      else if (!inRange) cls += " cal-grey";
+
+      html += `<div class="${cls}"><span class="cal-day-num">${day}</span>`;
+      if (vis && inRange && !future) html += renderDots(vis, false);
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+    return html;
+  }
+
+  function renderCalendar(rows) {
+    const visitMap = buildVisitMap(rows);
+    const today    = new Date();
+    const from     = inpFrom.value ? new Date(inpFrom.value)             : null;
+    const to       = inpTo.value   ? new Date(inpTo.value + "T23:59:59") : null;
+
+    const body      = $("calendar-body");
+    const labelEl   = $("cal-label");
+    const toggleBtn = $("cal-toggle");
+
+    if (calView === "year") {
+      labelEl.textContent   = String(calYear);
+      toggleBtn.textContent = "Monthly View";
+
+      // For current year: only show months up to and including today's month
+      const maxMonth = (calYear === today.getFullYear()) ? today.getMonth() : 11;
+      let html = `<div class="cal-year">`;
+      for (let m = 0; m <= maxMonth; m++) {
+        html += renderMonthMini(calYear, m, visitMap, today, from, to);
+      }
+      html += `</div>`;
+      body.innerHTML = html;
+
+    } else {
+      const label = new Date(calYear, calMonth).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+      labelEl.textContent   = label;
+      toggleBtn.textContent = "Yearly View";
+      body.innerHTML = renderMonthFull(calYear, calMonth, visitMap, today, from, to);
+    }
+
+    // Attach click handlers to every dot
+    body.querySelectorAll(".cal-dot[data-ids]").forEach(dot => {
+      dot.addEventListener("click", e => {
+        e.stopPropagation();
+        const ids = dot.dataset.ids.split(",").map(Number);
+        scrollToRows(ids);
+      });
+    });
+  }
+
+  // ── Mite chart ────────────────────────────────────────────────────────
+  async function renderMiteChart(rows) {
     const { Chart, registerables } = await import("https://cdn.jsdelivr.net/npm/chart.js@4/+esm");
     Chart.register(...registerables);
 
-    // ── Status Over Time (scatter, score 1–3) ────────────────────────
-    // Points sorted ascending by date
-    const statusPoints = rows
-      .map(r => {
-        const d     = parseDate(r[COL.DATE]);
-        const norm  = normaliseStatus(r[COL.STATUS]);
-        const score = statusScore(norm);
-        if (!d || score === null) return null;
-        return {
-          x:       d.getTime(),
-          y:       score,
-          _id:     r._id,
-          dateStr: fmtDate(d),
-          colony:  r[COL.COLONY] ?? "?",
-          location: r[COL.LOCATION] ?? "?",
-          statusLabel: statusLabel(norm),
-          norm,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.x - b.x);
-
-    // Colour each point by status level
-    const STATUS_COLOURS = { strong: "#2E7D32", neutral: "#F57F17", weak: "#C62828", unknown: "#9E9E9E" };
-
-    if (charts.statusTime) charts.statusTime.destroy();
-    charts.statusTime = new Chart($("chart-status-time"), {
-      type: "scatter",
-      data: {
-        datasets: [{
-          label: "Hive Status",
-          data: statusPoints,
-          backgroundColor: statusPoints.map(p => STATUS_COLOURS[p.norm] ?? "#9E9E9E"),
-          borderColor:     statusPoints.map(p => STATUS_COLOURS[p.norm] ?? "#9E9E9E"),
-          pointRadius: 6,
-          pointHoverRadius: 8,
-        }],
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: () => "",
-              label: ctx => {
-                const p = ctx.raw;
-                return [
-                  p.dateStr,
-                  `Colony ${p.colony} @ ${p.location}`,
-                  `Status: ${p.statusLabel}`,
-                ];
-              },
-            },
-          },
-        },
-        scales: {
-          x: {
-            type: "linear",
-            grid: { display: false },
-            ticks: {
-              maxTicksLimit: 8,
-              callback: value => {
-                const d = new Date(value);
-                return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "2-digit" });
-              },
-            },
-          },
-          y: {
-            min: 0.5,
-            max: 3.5,
-            ticks: {
-              stepSize: 1,
-              callback: v => ({ 1: "Weak 👎", 2: "Neutral 👋", 3: "Strong 👍" })[v] ?? "",
-            },
-            grid: { color: "rgba(0,0,0,0.06)" },
-          },
-        },
-        onClick: (evt, elements) => {
-          if (!elements.length) return;
-          const p = statusPoints[elements[0].index];
-          if (p) scrollToRow(p._id);
-        },
-        onHover: (evt, elements) => {
-          evt.native.target.style.cursor = elements.length ? "pointer" : "default";
-        },
-      },
-    });
-
-    // ── Mite Count Over Time (scatter) ───────────────────────────────
     const mitePoints = rows
       .map(r => {
         const d   = parseDate(r[COL.DATE]);
@@ -482,7 +593,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
           y:        val,
           _id:      r._id,
           dateStr:  fmtDate(d),
-          colony:   r[COL.COLONY] ?? "?",
+          colony:   r[COL.COLONY]   ?? "?",
           location: r[COL.LOCATION] ?? "?",
         };
       })
@@ -513,11 +624,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
                 title: () => "",
                 label: ctx => {
                   const p = ctx.raw;
-                  return [
-                    p.dateStr,
-                    `Colony ${p.colony} @ ${p.location}`,
-                    `Mite count: ${p.y}`,
-                  ];
+                  return [p.dateStr, `Colony ${p.colony} @ ${p.location}`, `Mite count: ${p.y}`];
                 },
               },
             },
@@ -528,10 +635,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
               grid: { display: false },
               ticks: {
                 maxTicksLimit: 8,
-                callback: value => {
-                  const d = new Date(value);
-                  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "2-digit" });
-                },
+                callback: value => new Date(value).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "2-digit" }),
               },
             },
             y: {
@@ -543,7 +647,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
           onClick: (evt, elements) => {
             if (!elements.length) return;
             const p = mitePoints[elements[0].index];
-            if (p) scrollToRow(p._id);
+            if (p) scrollToRows([p._id]);
           },
           onHover: (evt, elements) => {
             evt.native.target.style.cursor = elements.length ? "pointer" : "default";
@@ -561,6 +665,183 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 </script>
 
 <style>
+  /* ── Calendar nav header ─────────────────────────────────────────── */
+  .cal-nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .cal-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .cal-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    min-width: 7rem;
+    text-align: center;
+    color: var(--charcoal);
+  }
+
+  .btn-sm {
+    padding: 0.2rem 0.55rem;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  /* ── Year grid ───────────────────────────────────────────────────── */
+  .cal-year {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1.5rem 1rem;
+  }
+
+  @media (max-width: 860px) { .cal-year { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .cal-year { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* ── Month block (mini) ──────────────────────────────────────────── */
+  .cal-month {}
+
+  .cal-month-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--charcoal-mid);
+    margin-bottom: 0.3rem;
+  }
+
+  .cal-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .cal-dh {
+    font-size: 0.6rem;
+    text-align: center;
+    color: var(--charcoal-mid);
+    font-weight: 600;
+    padding-bottom: 2px;
+  }
+
+  .cal-day-mini {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .cal-pad { visibility: hidden; }
+
+  .cal-future  { opacity: 0.25; pointer-events: none; }
+  .cal-grey    { opacity: 0.35; }
+
+  /* ── Dots (mini) ─────────────────────────────────────────────────── */
+  .cal-dots {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cal-dots-mini { gap: 1px; }
+
+  .cal-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+    transition: filter 0.12s;
+  }
+  .cal-dot:hover { filter: brightness(1.2); }
+
+  /* Size: mini (year view) */
+  .cal-dots-mini .cal-dot {
+    width: 9px;
+    height: 9px;
+    font-size: 0.45rem;
+    border-radius: 2px;
+  }
+
+  /* Size: full (month view) */
+  .cal-dots:not(.cal-dots-mini) .cal-dot {
+    width: 22px;
+    height: 22px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+  }
+
+  /* ── Month (full view) ───────────────────────────────────────────── */
+  .cal-grid-full {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+  }
+
+  .cal-dh-full {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--charcoal-mid);
+    padding: 0.3rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .cal-day-full {
+    min-height: 72px;
+    padding: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--white, #fff);
+  }
+
+  .cal-day-num {
+    font-size: 0.78rem;
+    color: var(--charcoal-mid);
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  /* ── Legend ──────────────────────────────────────────────────────── */
+  .cal-legend {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 0.85rem;
+    font-size: 0.78rem;
+    color: var(--charcoal-mid);
+    align-items: center;
+  }
+
+  .cal-dot-demo {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    margin-right: 3px;
+    vertical-align: middle;
+  }
+
+  /* ── Summary row ─────────────────────────────────────────────────── */
   .summary-row {
     display: flex;
     gap: 1rem;
@@ -596,7 +877,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     letter-spacing: 0.04em;
   }
 
-  /* Row highlight on chart click */
+  /* ── Row highlight on calendar click ────────────────────────────── */
   @keyframes rowFlash {
     0%   { background-color: var(--amber-light); }
     100% { background-color: transparent; }
