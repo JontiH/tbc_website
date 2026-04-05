@@ -58,14 +58,17 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   let formStructure = null;
 
-  // ── Fetch form structure from Worker ────────────────────────────────
+  // ── Fetch form structure + CF identity in parallel ──────────────────
   async function init() {
     try {
-      const res = await fetch(`${WORKER_URL}/hive-form`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      formStructure = await res.json();
+      const [formRes, email] = await Promise.all([
+        fetch(`${WORKER_URL}/hive-form`),
+        fetchCfEmail(),
+      ]);
+      if (!formRes.ok) throw new Error(`HTTP ${formRes.status}`);
+      formStructure = await formRes.json();
       loadingEl.style.display = "none";
-      renderForm();
+      renderForm(email);
       formWrap.style.display = "block";
     } catch (err) {
       loadingEl.style.display = "none";
@@ -106,23 +109,24 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       "Mites per 100 bees. Leave blank if not checked today.",
   };
 
-  // ── Read email from Cloudflare Access JWT ────────────────────────────
-  function getCfEmail() {
-    const cookie = document.cookie.split(";").find(c => c.trim().startsWith("CF_Authorization="));
-    if (!cookie) return "";
-    const token = cookie.split("=").slice(1).join("=").trim();
-    const parts = token.split(".");
-    if (parts.length < 2) return "";
+  // ── Read email from Cloudflare Access identity endpoint ─────────────
+  // CF_Authorization is HttpOnly in current CF Access versions — can't read
+  // it from JS. /cdn-cgi/access/get-identity is served by Cloudflare on any
+  // Access-protected domain and returns the authenticated user's details.
+  async function fetchCfEmail() {
     try {
-      const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-      return JSON.parse(json).email ?? "";
+      const res = await fetch("/cdn-cgi/access/get-identity");
+      if (!res.ok) return "";
+      const data = await res.json();
+      return data.email ?? "";
     } catch {
       return "";
     }
   }
+  }
 
   // ── Render form from structure ───────────────────────────────────────
-  function renderForm() {
+  function renderForm(email = "") {
     const { description, items } = formStructure;
 
     const visibleItems = items.filter(i => i.type !== "file_upload" && i.type !== "unknown");
@@ -132,12 +136,11 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     form.noValidate = true;
 
     // Identity banner — always shown at the top
-    const email = getCfEmail();
     const identityBar = document.createElement("div");
     identityBar.className = "hc-identity";
     identityBar.innerHTML = email
       ? `Submitting as <strong>${escHtml(email)}</strong>`
-      : `<span class="hc-identity-unknown">Could not detect your email — make sure you are logged in via Cloudflare Access.</span>`;
+      : `Submitting anonymously — email could not be detected`;
     form.appendChild(identityBar);
 
     // Optional Google Form description
@@ -192,6 +195,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
     form.appendChild(submitBlock);
 
+    form.dataset.email = email;
     form.addEventListener("submit", handleSubmit);
     formWrap.innerHTML = "";
     formWrap.appendChild(form);
@@ -357,7 +361,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       return;
     }
 
-    payload.email = getCfEmail();
+    payload.email = form.dataset.email ?? "";
 
     submitBtn.disabled    = true;
     submitBtn.textContent = "Submitting…";
@@ -385,9 +389,10 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     }
   }
 
-  $("hc-another").addEventListener("click", () => {
+  $("hc-another").addEventListener("click", async () => {
     successEl.style.display = "none";
-    renderForm();
+    const email = await fetchCfEmail();
+    renderForm(email);
     formWrap.style.display  = "block";
     formWrap.scrollIntoView({ behavior: "smooth", block: "start" });
   });
