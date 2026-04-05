@@ -32,7 +32,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
-  font-size: 16px;
+  font-size: 20px;
   scroll-behavior: smooth;
 }
 
@@ -40,7 +40,8 @@ body {
   font-family: var(--font-sans);
   background: var(--cream);
   color: var(--charcoal);
-  line-height: 1.65;
+  line-height: 1.7;
+  font-weight: 500;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -53,7 +54,7 @@ a:hover { text-decoration: underline; }
 /* ---- Typography ---- */
 h1, h2, h3, h4 {
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--charcoal);
 }
 h1 { font-size: clamp(2rem, 5vw, 3rem); }
