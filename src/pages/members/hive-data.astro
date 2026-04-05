@@ -1004,7 +1004,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       if (to   && to.getFullYear()   < calYear) endMonth = -1;
 
       const monthCount = endMonth >= startMonth ? endMonth - startMonth + 1 : 0;
-      const cols = Math.min(Math.max(monthCount, 1), 4);
+      const maxCols = window.innerWidth <= 480 ? 2
+                    : window.innerWidth <= 720 ? 3
+                    : 4;
+      const cols = Math.min(Math.max(monthCount, 1), maxCols);
 
       const yearGrid = document.createElement("div");
       yearGrid.className = "cal-year";
