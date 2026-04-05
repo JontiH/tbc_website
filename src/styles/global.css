@@ -195,27 +195,10 @@ main { flex: 1; }
   opacity: 1;
 }
 
-.hero-logo-wrap {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 2.5rem;
-}
-
-.hero-logo-wrap img {
-  width: clamp(260px, 40%, 460px);
-  height: auto;
-  border-radius: 16px;
-  box-shadow: 0 8px 48px rgba(0,0,0,0.45);
-}
-
 .hero-content {
   position: relative;
   z-index: 1;
   max-width: 680px;
-  margin: 0 auto;
-  text-align: center;
 }
 
 .hero-eyebrow {
@@ -246,7 +229,6 @@ main { flex: 1; }
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
 /* ---- Buttons ---- */
