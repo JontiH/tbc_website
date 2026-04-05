@@ -91,7 +91,7 @@ main { flex: 1; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 210px;
+  height: 70px;
   gap: 1rem;
 }
 
@@ -102,26 +102,26 @@ main { flex: 1; }
 }
 
 .nav-logo img {
-  height: 192px;
+  height: 48px;
   width: auto;
 }
 
 .nav-links {
   display: flex;
   list-style: none;
-  gap: 0.5rem;
+  gap: 0.25rem;
   padding: 0;
-  margin: 0 0 0 auto;
+  margin: 0;
   align-items: center;
 }
 
 .nav-links a {
   display: block;
-  padding: 0.6rem 1.25rem;
+  padding: 0.4rem 0.85rem;
   border-radius: var(--radius);
   color: var(--charcoal);
   font-weight: 500;
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -195,10 +195,27 @@ main { flex: 1; }
   opacity: 1;
 }
 
+.hero-logo-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2.5rem;
+}
+
+.hero-logo-wrap img {
+  width: clamp(260px, 40%, 460px);
+  height: auto;
+  border-radius: 16px;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.45);
+}
+
 .hero-content {
   position: relative;
   z-index: 1;
   max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .hero-eyebrow {
@@ -229,6 +246,7 @@ main { flex: 1; }
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* ---- Buttons ---- */
