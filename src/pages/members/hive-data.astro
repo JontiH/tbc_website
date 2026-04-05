@@ -298,8 +298,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   function getFiltered() {
     const loc      = selLocation.value;
     const colony   = selColony.value;
-    const from     = inpFrom.value ? new Date(inpFrom.value)             : null;
-    const to       = inpTo.value   ? new Date(inpTo.value + "T23:59:59") : null;
+    const from     = inpFrom.value ? new Date(inpFrom.value + "T00:00:00") : null;
+    const to       = inpTo.value   ? new Date(inpTo.value   + "T23:59:59") : null;
     const statFilt = selStatus.value;
 
     return allRows.filter(r => {
@@ -314,8 +314,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   }
 
   function updateCalFromFilter() {
-    const from = inpFrom.value ? new Date(inpFrom.value) : null;
-    const to   = inpTo.value   ? new Date(inpTo.value)   : null;
+    const from = inpFrom.value ? new Date(inpFrom.value + "T00:00:00") : null;
+    const to   = inpTo.value   ? new Date(inpTo.value   + "T00:00:00") : null;
 
     if (from && to) {
       const days = (to - from) / 86400000;
@@ -635,8 +635,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   function renderCalendar(rows) {
     const visitMap  = buildVisitMap(rows);
     const today     = new Date();
-    const from      = inpFrom.value ? new Date(inpFrom.value)             : null;
-    const to        = inpTo.value   ? new Date(inpTo.value + "T23:59:59") : null;
+    const from      = inpFrom.value ? new Date(inpFrom.value + "T00:00:00") : null;
+    const to        = inpTo.value   ? new Date(inpTo.value   + "T23:59:59") : null;
     const body      = $("calendar-body");
     const labelEl   = $("cal-label");
     const toggleBtn = $("cal-toggle");
