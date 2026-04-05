@@ -50,9 +50,9 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
           <label for="filter-status">Status</label>
           <select id="filter-status">
             <option value="">All Statuses</option>
-            <option value="strong">Strong 👍</option>
-            <option value="neutral">Neutral 👋</option>
-            <option value="weak">Weak 👎</option>
+            <option value="strong">Strong</option>
+            <option value="neutral">Neutral</option>
+            <option value="weak">Weak</option>
           </select>
         </div>
         <div class="filter-group" style="justify-content: flex-end;">
@@ -170,17 +170,18 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   }
 
   function statusLabel(status) {
-    return { strong: "Strong 👍", neutral: "Neutral 👋", weak: "Weak 👎" }[status] ?? "Neutral 👋";
+    return { strong: "Strong", neutral: "Neutral", weak: "Weak" }[status] ?? "Neutral";
   }
 
   function statusBadge(status) {
     const map = {
-      strong:  ["badge-good", "Strong 👍"],
-      neutral: ["badge-mid",  "Neutral 👋"],
-      weak:    ["badge-bad",  "Weak 👎"],
+      strong:  ["badge-good", "Strong"],
+      neutral: ["badge-mid",  "Neutral"],
+      weak:    ["badge-bad",  "Weak"],
     };
     const [cls, label] = map[status] ?? map.neutral;
-    return `<span class="badge ${cls}">${label}</span>`;
+    const color = STATUS_COL[status] ?? STATUS_COL.neutral;
+    return `<span class="badge ${cls}">${label}&nbsp;<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};vertical-align:middle;"></span></span>`;
   }
 
   const STATUS_COL = { strong: "#2E7D32", neutral: "#F57F17", weak: "#C62828" };
@@ -487,9 +488,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     if (count > 1) span.textContent = String(count);
 
     // Tooltip lines: date header + one line per visit
+    const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${STATUS_COL[status]};margin-left:3px;vertical-align:middle;"></span>`;
     const tipLines = [
       `<strong>${dateStr}</strong>`,
-      ...visits.map(v => `Colony ${v.colony} @ ${v.location} — ${statusLabel(status)}`),
+      ...visits.map(v => `Colony ${v.colony} @ ${v.location} — ${statusLabel(status)}${dot}`),
     ];
 
     span.addEventListener("mouseenter", evt => showTooltip(evt, tipLines));
@@ -645,11 +647,23 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       labelEl.textContent   = String(calYear);
       toggleBtn.textContent = "Monthly View";
 
-      const maxMonth = (calYear === today.getFullYear()) ? today.getMonth() : 11;
+      // Compute visible month range for this year:
+      // - Default ceiling: current month for current year, Dec for past years
+      // - If a date filter is active, clamp to just the months it covers
+      const ceilMonth = (calYear === today.getFullYear()) ? today.getMonth() : 11;
+      let startMonth = 0;
+      let endMonth   = ceilMonth;
+
+      if (from && from.getFullYear() === calYear) startMonth = Math.max(startMonth, from.getMonth());
+      if (to   && to.getFullYear()   === calYear) endMonth   = Math.min(endMonth,   to.getMonth());
+      // If the filter excludes this year entirely, show nothing
+      if (from && from.getFullYear() > calYear) endMonth = -1;
+      if (to   && to.getFullYear()   < calYear) endMonth = -1;
+
       const yearGrid = document.createElement("div");
       yearGrid.className = "cal-year";
 
-      for (let m = 0; m <= maxMonth; m++) {
+      for (let m = startMonth; m <= endMonth; m++) {
         yearGrid.appendChild(buildMonthMini(calYear, m, visitMap, today, from, to));
       }
       body.appendChild(yearGrid);
