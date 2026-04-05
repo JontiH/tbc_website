@@ -631,20 +631,27 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   }
 
   /* ── Inner fill ── */
+  /*
+   * Perpendicular border thickness = 3px everywhere.
+   * The inner clip-path is NOT the same as the shell's — because the slopes
+   * of the angled sides differ when the element is shorter.
+   * Derived: corner inset = 6.7px, tip inset = 0.5px from each edge.
+   * This gives exactly 3px amber perpendicular to every edge of the shell.
+   */
   .hc-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     height: 30px;
-    padding: 0 calc(0.9rem + 11px);
+    padding: 0 calc(0.9rem + 7px);
     background: var(--cream);
     clip-path: polygon(
-      11px 0%,
-      calc(100% - 11px) 0%,
-      100% 50%,
-      calc(100% - 11px) 100%,
-      11px 100%,
-      0% 50%
+      6.7px 0%,
+      calc(100% - 6.7px) 0%,
+      calc(100% - 0.5px) 50%,
+      calc(100% - 6.7px) 100%,
+      6.7px 100%,
+      0.5px 50%
     );
     font-size: 0.88rem;
     color: var(--charcoal);
