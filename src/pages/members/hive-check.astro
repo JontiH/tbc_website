@@ -115,7 +115,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
     form.appendChild(footer);
 
-    form.addEventListener("submit", e => handleSubmit(e, submitUrl));
+    form.addEventListener("submit", handleSubmit);
     formWrap.innerHTML = "";
     formWrap.appendChild(form);
   }
@@ -238,57 +238,69 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     return wrap;
   }
 
+  // Maps form question titles → JSON keys the Worker expects
+  const TITLE_KEY = {
+    "Date of Visit":                                                      "date",
+    "Where is the hive located?":                                         "location",
+    "Which Colony are you checking (A,B,C...)?":                          "colony",
+    "How would you describe the holistic status of this hive?":           "status",
+    "Are you doing a mite treatment? if so what type of treament?":       "treatment",
+    "Are you adding feed? if so, what type of feed?":                     "feed",
+    "What is the mite count? ( leave blank if you didn't check)":         "mite_count",
+    "additional comments for this colony":                                "comments",
+  };
+
   // ── Form submission ──────────────────────────────────────────────────
-  async function handleSubmit(e, submitUrl) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const form = e.target;
+    const form      = e.target;
     const submitBtn = form.querySelector(".hc-submit");
 
-    // Client-side validation
     let valid = true;
-    form.querySelectorAll(".hc-question").forEach(q => {
-      q.classList.remove("hc-invalid");
-    });
+    form.querySelectorAll(".hc-question").forEach(q => q.classList.remove("hc-invalid"));
 
-    const params = new URLSearchParams();
+    const payload = {};
 
     for (const item of formStructure.items) {
       if (item.type === "file_upload") continue;
 
+      const key = TITLE_KEY[item.title];
+      if (!key) continue;
+
       const qEl = form.querySelector(`[data-entry-id="${item.entryId}"]`);
       if (!qEl) continue;
 
+      let value = "";
+
       if (item.type === "date") {
-        const val = qEl.querySelector("input").value;
-        if (!val && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
-        if (val) {
-          const [y, m, d] = val.split("-").map(Number);
-          params.append(`entry.${item.entryId}_year`,  y);
-          params.append(`entry.${item.entryId}_month`, m);
-          params.append(`entry.${item.entryId}_day`,   d);
+        const raw = qEl.querySelector("input").value; // "YYYY-MM-DD"
+        if (!raw && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
+        if (raw) {
+          const [y, m, d] = raw.split("-");
+          value = `${d}/${m}/${y}`; // DD/MM/YYYY — matches existing sheet format
         }
 
       } else if (item.type === "text") {
-        const val = qEl.querySelector("input").value.trim();
-        if (!val && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
-        if (val) params.append(`entry.${item.entryId}`, val);
+        value = qEl.querySelector("input").value.trim();
+        if (!value && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
 
       } else if (item.type === "textarea") {
-        const val = qEl.querySelector("textarea").value.trim();
-        if (!val && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
-        if (val) params.append(`entry.${item.entryId}`, val);
+        value = qEl.querySelector("textarea").value.trim();
+        if (!value && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
 
       } else if (item.type === "radio") {
         const checked = qEl.querySelector(`input[name="entry_${item.entryId}"]:checked`);
         if (!checked && item.required) { qEl.classList.add("hc-invalid"); valid = false; continue; }
         if (checked) {
-          params.append(`entry.${item.entryId}`, checked.value);
           if (checked.value === "__other_option__") {
-            const otherText = qEl.querySelector(`.hc-other-input[data-for-entry="${item.entryId}"]`)?.value.trim() ?? "";
-            params.append(`entry.${item.entryId}.other_option_response`, otherText);
+            value = qEl.querySelector(`.hc-other-input[data-for-entry="${item.entryId}"]`)?.value.trim() ?? "";
+          } else {
+            value = checked.value;
           }
         }
       }
+
+      payload[key] = value;
     }
 
     if (!valid) {
@@ -296,18 +308,20 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       return;
     }
 
-    submitBtn.disabled     = true;
-    submitBtn.textContent  = "Submitting…";
+    submitBtn.disabled    = true;
+    submitBtn.textContent = "Submitting…";
 
     try {
-      // mode: no-cors because Google's formResponse endpoint doesn't send CORS headers.
-      // The fetch always "succeeds" (opaque response) as long as it doesn't throw.
-      await fetch(submitUrl, {
+      const res = await fetch(`${WORKER_URL}/hive-form-submit`, {
         method:  "POST",
-        mode:    "no-cors",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body:    params.toString(),
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
 
       formWrap.style.display  = "none";
       successEl.style.display = "block";
@@ -315,7 +329,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     } catch (err) {
       submitBtn.disabled    = false;
       submitBtn.textContent = "Submit hive check";
-      alert(`Submission failed: ${err.message}. Please try the original form link.`);
+      alert(`Submission failed: ${err.message}`);
     }
   }
 

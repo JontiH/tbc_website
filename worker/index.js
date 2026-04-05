@@ -15,7 +15,7 @@ const CACHE_TTL = 3600;
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin":  origin ?? "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
 }
@@ -194,6 +194,22 @@ function processFormStructure(api) {
   };
 }
 
+// ── Sheet append helper ──────────────────────────────────────────────────────
+// Columns A-K must match the form response sheet exactly:
+// A:Timestamp  B:Email  C:Date  D:Location  E:Colony  F:Status
+// G:Treatment  H:Feed   I:Mite count  J:Comments  K:Photos
+async function appendHiveRow(sheetId, row, token) {
+  const range = encodeURIComponent("Form responses 1!A:K");
+  const url   = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const res   = await fetch(url, {
+    method:  "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body:    JSON.stringify({ values: [row] }),
+  });
+  if (!res.ok) throw new Error(`Sheets append error ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env, ctx) {
@@ -203,11 +219,51 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
+
+    const path = url.pathname.replace(/\/$/, "");
+
+    // POST only allowed for the submit endpoint
+    if (request.method === "POST") {
+      if (path !== "/hive-form-submit") {
+        return errorResponse("Method not allowed", 405, origin);
+      }
+
+      let body;
+      try { body = await request.json(); }
+      catch { return errorResponse("Invalid JSON body", 400, origin); }
+
+      // Timestamp in Google Forms format: M/D/YYYY H:MM:SS
+      const now = new Date();
+      const ts  = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()} `
+                + `${now.getHours()}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+
+      const row = [
+        ts,                       // A: Timestamp
+        body.email       ?? "",   // B: Email address
+        body.date        ?? "",   // C: Date of Visit
+        body.location    ?? "",   // D: Where is the hive located?
+        body.colony      ?? "",   // E: Which Colony?
+        body.status      ?? "",   // F: Holistic status
+        body.treatment   ?? "",   // G: Mite treatment
+        body.feed        ?? "",   // H: Feed
+        body.mite_count  ?? "",   // I: Mite count
+        body.comments    ?? "",   // J: Additional comments
+        "",                       // K: Photos (not supported in custom form)
+      ];
+
+      try {
+        const token = await getAccessToken(env, "https://www.googleapis.com/auth/spreadsheets");
+        await appendHiveRow(env.HIVE_SHEET_ID, row, token);
+        return jsonResponse({ ok: true }, 200, origin);
+      } catch (err) {
+        console.error("Submit error:", err);
+        return errorResponse(`Submission failed: ${err.message}`, 500, origin);
+      }
+    }
+
     if (request.method !== "GET") {
       return errorResponse("Method not allowed", 405, origin);
     }
-
-    const path = url.pathname.replace(/\/$/, "");
 
     // Build cache key — unique per endpoint + relevant ID
     const cacheId = path === "/hive-form" ? `form-${env.HIVE_FORM_ID ?? "form"}`
