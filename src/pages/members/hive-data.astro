@@ -444,7 +444,15 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   });
 
   // ── Date picker ──────────────────────────────────────────────────────
-  let dpDdYear, dpDdMonth, dpDdDay; // tentative dropdown selection
+  let dpDdYear, dpDdMonth, dpDdDay;
+
+  const MONTH_NAMES = ["January","February","March","April","May","June",
+                       "July","August","September","October","November","December"];
+
+  // Infinite-loop column constants (must match CSS)
+  const DD_IH = 36;   // item height px
+  const DD_CH = 180;  // column visible height px
+  const DD_COPIES = 7; // copies of the list — enough to scroll freely
 
   function dpUpdateLabel() {
     const el = $("dp-label");
@@ -454,39 +462,34 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   }
 
   function dpOpen() {
-    // Navigate to the relevant month
     const seed = dpStep === "to" && dpFrom ? dpFrom : (dpFrom ?? new Date());
     dpLYear  = seed.getFullYear();
     dpLMonth = seed.getMonth();
+    const rect = $("dp-trigger").getBoundingClientRect();
     const panel = $("dp-panel");
-    const btn   = $("dp-trigger");
-    const rect  = btn.getBoundingClientRect();
     panel.style.left = Math.min(rect.left, window.innerWidth - 310) + "px";
     panel.style.top  = (rect.bottom + window.scrollY + 6) + "px";
-    $("dp-cal-view").style.display  = "block";
-    $("dp-dropdown").style.display  = "none";
+    $("dp-cal-view").style.display = "block";
+    $("dp-dropdown").style.display = "none";
     panel.style.display = "block";
     dpRender();
   }
 
   function dpClose() {
-    $("dp-panel").style.display = "none";
+    $("dp-panel").style.display   = "none";
     $("dp-dropdown").style.display = "none";
-    $("dp-cal-view").style.display = "block";
+    $("dp-cal-view").style.display  = "block";
   }
 
   function dpRender() {
-    // Header shows which step we're on
     $("dp-step-label").textContent = dpStep === "from" ? "Start Date" : "End Date";
     $("dp-month-nav-label").textContent =
       new Date(dpLYear, dpLMonth).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
 
-    // Single month calendar
     const wrap = $("dp-months");
     wrap.innerHTML = "";
     wrap.appendChild(dpBuildMonthGrid(dpLYear, dpLMonth));
 
-    // Footer status
     $("dp-status").textContent = !dpFrom
       ? "Click a start date, or use ▾ to type one"
       : !dpTo
@@ -499,34 +502,26 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     const today = new Date(); today.setHours(0,0,0,0);
     const grid  = document.createElement("div");
     grid.className = "cal-grid dp-grid";
-
     HEADS.forEach(h => {
       const dh = document.createElement("div");
       dh.className = "cal-dh";
       dh.textContent = h;
       grid.appendChild(dh);
     });
-
     const days   = new Date(year, month + 1, 0).getDate();
     const offset = (new Date(year, month, 1).getDay() + 6) % 7;
     for (let i = 0; i < offset; i++) grid.appendChild(document.createElement("div"));
-
     for (let day = 1; day <= days; day++) {
-      const d    = new Date(year, month, day);
+      const d = new Date(year, month, day);
       const cell = document.createElement("div");
       cell.className = "dp-day";
       cell.textContent = String(day);
-
       if (d.getTime() === today.getTime()) cell.classList.add("dp-today");
       if (d > today) cell.classList.add("dp-future");
-
-      const t0 = dpFrom ? dpFrom.getTime() : null;
-      const t1 = dpTo   ? dpTo.getTime()   : null;
-      const dt  = d.getTime();
+      const t0 = dpFrom?.getTime(), t1 = dpTo?.getTime(), dt = d.getTime();
       if (t0 && t1 && dt > t0 && dt < t1) cell.classList.add("dp-in-range");
       if (t0 && dt === t0) cell.classList.add("dp-endpoint");
       if (t1 && dt === t1) cell.classList.add("dp-endpoint");
-
       cell.addEventListener("click", () => dpPickDate(d));
       grid.appendChild(cell);
     }
@@ -543,90 +538,137 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       dpStep = "from";
       inpFrom.value = dateKey(dpFrom);
       inpTo.value   = dateKey(dpTo);
-      dpUpdateLabel();
-      updateCalFromFilter();
-      render();
-      dpClose();
-      return;
+      dpUpdateLabel(); updateCalFromFilter(); render();
+      dpClose(); return;
     }
     dpRender();
   }
 
-  // ── Dropdown (year / month / day) ──────────────────────────────────
-  const MONTH_NAMES = ["January","February","March","April","May","June",
-                       "July","August","September","October","November","December"];
+  // ── Infinite-loop dropdown columns ───────────────────────────────────
+  // Each column renders DD_COPIES copies of its list; the middle copy is
+  // centred in the viewport. Scroll wraps by jumping ±2 copies worth of
+  // pixels, keeping the visual position identical.
+
+  function buildLoopCol(colEl, labels, selIdx, onChangeIdx) {
+    const N = labels.length;
+
+    // Remove old listeners (stored on element to avoid accumulation)
+    if (colEl._dpScroll) colEl.removeEventListener("scroll", colEl._dpScroll);
+    if (colEl._dpClick)  colEl.removeEventListener("click",  colEl._dpClick);
+    colEl.innerHTML = "";
+
+    // Render DD_COPIES copies
+    for (let c = 0; c < DD_COPIES; c++) {
+      labels.forEach((label, i) => {
+        const el = document.createElement("div");
+        el.className = "dp-dd-item";
+        el.dataset.i   = i;
+        el.dataset.abs = c * N + i; // absolute index in the list
+        el.textContent = label;
+        colEl.appendChild(el);
+      });
+    }
+
+    // Centre the selected item in the middle copy
+    const midCopy = Math.floor(DD_COPIES / 2);
+    const targetST = (midCopy * N + selIdx) * DD_IH - (DD_CH / 2 - DD_IH / 2);
+    colEl.scrollTop = Math.max(0, targetST);
+    highlightCol(colEl, selIdx);
+
+    // Scroll: update highlight, wrap, snap
+    let snapTimer;
+    colEl._dpScroll = () => {
+      // Wrap: stay within copies 1 … DD_COPIES-2
+      const minST = N * DD_IH;
+      const maxST = (DD_COPIES - 2) * N * DD_IH;
+      if (colEl.scrollTop < minST)       colEl.scrollTop += (DD_COPIES - 3) * N * DD_IH;
+      else if (colEl.scrollTop > maxST)  colEl.scrollTop -= (DD_COPIES - 3) * N * DD_IH;
+
+      // Determine centred item
+      const centerST  = colEl.scrollTop + DD_CH / 2 - DD_IH / 2;
+      const absIdx    = Math.round(centerST / DD_IH);
+      const realIdx   = ((absIdx % N) + N) % N;
+      highlightCol(colEl, realIdx);
+      onChangeIdx(realIdx);
+
+      // Snap to nearest item after scroll settles
+      clearTimeout(snapTimer);
+      snapTimer = setTimeout(() => {
+        const snapAbs = Math.round((colEl.scrollTop + DD_CH / 2 - DD_IH / 2) / DD_IH);
+        colEl.scrollTo({ top: snapAbs * DD_IH - (DD_CH / 2 - DD_IH / 2), behavior: "smooth" });
+      }, 180);
+    };
+    colEl.addEventListener("scroll", colEl._dpScroll);
+
+    // Click: smooth-scroll clicked item to centre
+    colEl._dpClick = e => {
+      const item = e.target.closest("[data-abs]");
+      if (!item) return;
+      const target = parseInt(item.dataset.abs) * DD_IH - (DD_CH / 2 - DD_IH / 2);
+      colEl.scrollTo({ top: target, behavior: "smooth" });
+    };
+    colEl.addEventListener("click", colEl._dpClick);
+  }
+
+  function highlightCol(colEl, realIdx) {
+    colEl.querySelectorAll(".dp-dd-item").forEach(el => {
+      el.classList.toggle("dp-dd-sel", parseInt(el.dataset.i) === realIdx);
+    });
+  }
 
   function dpOpenDropdown() {
     const seed = (dpStep === "to" && dpTo ? dpTo : dpFrom) ?? new Date(dpLYear, dpLMonth, 1);
     dpDdYear  = seed.getFullYear();
     dpDdMonth = seed.getMonth();
     dpDdDay   = seed.getDate();
-    $("dp-dd-title").textContent =
-      (dpStep === "from" ? "Pick Start Date" : "Pick End Date");
+    $("dp-dd-title").textContent = dpStep === "from" ? "Pick Start Date" : "Pick End Date";
     $("dp-cal-view").style.display = "none";
     $("dp-dropdown").style.display = "block";
-    dpBuildDropdown();
-  }
 
-  function dpBuildDropdown() {
     const thisYear = new Date().getFullYear();
+    const yearLabels = [];
+    for (let y = 2020; y <= thisYear + 2; y++) yearLabels.push(String(y));
 
-    // ── Year column ──
-    const yearCol = $("dp-col-year"); yearCol.innerHTML = "";
-    for (let y = 2020; y <= thisYear + 1; y++) {
-      const item = document.createElement("div");
-      item.className = "dp-dd-item" + (y === dpDdYear ? " dp-dd-sel" : "");
-      item.textContent = String(y);
-      item.addEventListener("click", () => {
-        dpDdYear = y;
-        const max = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
-        if (dpDdDay > max) dpDdDay = max;
-        dpBuildDropdown();
-      });
-      yearCol.appendChild(item);
-    }
-    yearCol.querySelector(".dp-dd-sel")?.scrollIntoView({ block: "center" });
-
-    // ── Month column ──
-    const monthCol = $("dp-col-month"); monthCol.innerHTML = "";
-    MONTH_NAMES.forEach((name, idx) => {
-      const item = document.createElement("div");
-      item.className = "dp-dd-item" + (idx === dpDdMonth ? " dp-dd-sel" : "");
-      item.textContent = name;
-      item.addEventListener("click", () => {
-        dpDdMonth = idx;
-        const max = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
-        if (dpDdDay > max) dpDdDay = max;
-        dpBuildDropdown();
-      });
-      monthCol.appendChild(item);
+    buildLoopCol($("dp-col-year"), yearLabels, dpDdYear - 2020, idx => {
+      dpDdYear = 2020 + idx;
+      dpDdDayClamped();
     });
-    monthCol.querySelector(".dp-dd-sel")?.scrollIntoView({ block: "center" });
 
-    // ── Day column ──
-    const dayCol = $("dp-col-day"); dayCol.innerHTML = "";
+    buildLoopCol($("dp-col-month"), MONTH_NAMES, dpDdMonth, idx => {
+      dpDdMonth = idx;
+      dpDdDayClamped();
+    });
+
     const daysInMonth = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
-    for (let d = 1; d <= daysInMonth; d++) {
-      const item = document.createElement("div");
-      item.className = "dp-dd-item" + (d === dpDdDay ? " dp-dd-sel" : "");
-      item.textContent = String(d);
-      item.addEventListener("click", () => { dpDdDay = d; dpBuildDropdown(); });
-      dayCol.appendChild(item);
-    }
-    dayCol.querySelector(".dp-dd-sel")?.scrollIntoView({ block: "center" });
+    const dayLabels   = Array.from({ length: daysInMonth }, (_, i) => String(i + 1));
+    buildLoopCol($("dp-col-day"), dayLabels, dpDdDay - 1, idx => {
+      dpDdDay = idx + 1;
+    });
   }
 
-  $("dp-header-btn").addEventListener("click", e => { e.stopPropagation(); dpOpenDropdown(); });
-  $("dp-dd-cancel").addEventListener("click",  e => {
-    e.stopPropagation();
+  function dpDdDayClamped() {
+    const max = new Date(dpDdYear, dpDdMonth + 1, 0).getDate();
+    if (dpDdDay > max) dpDdDay = max;
+    // Rebuild day column with new month's day count
+    const dayLabels = Array.from({ length: max }, (_, i) => String(i + 1));
+    buildLoopCol($("dp-col-day"), dayLabels, dpDdDay - 1, idx => { dpDdDay = idx + 1; });
+  }
+
+  $("dp-panel").addEventListener("click", e => e.stopPropagation());
+
+  $("dp-header-btn").addEventListener("click", dpOpenDropdown);
+
+  $("dp-dd-cancel").addEventListener("click", () => {
     $("dp-dropdown").style.display = "none";
     $("dp-cal-view").style.display = "block";
   });
-  $("dp-dd-select").addEventListener("click",  e => {
-    e.stopPropagation();
+
+  $("dp-dd-select").addEventListener("click", () => {
     $("dp-dropdown").style.display = "none";
     $("dp-cal-view").style.display = "block";
     dpPickDate(new Date(dpDdYear, dpDdMonth, dpDdDay));
+    // If picking start: dpPickDate transitions to "End Date" calendar view (stays open)
+    // If picking end:   dpPickDate closes the panel
   });
 
   // ── Panel open / close / nav ────────────────────────────────────────
@@ -635,11 +677,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     $("dp-panel").style.display === "none" ? dpOpen() : dpClose();
   });
 
-  document.addEventListener("click", e => {
-    const panel = $("dp-panel");
-    if (panel.style.display !== "none" &&
-        !panel.contains(e.target) &&
-        e.target !== $("dp-trigger")) dpClose();
+  document.addEventListener("click", () => {
+    if ($("dp-panel").style.display !== "none") dpClose();
   });
 
   $("dp-prev").addEventListener("click", e => {
@@ -1376,29 +1415,35 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   }
 
   .dp-dd-col {
-    height: 180px;
+    height: 180px;                /* must match DD_CH constant in JS */
     overflow-y: auto;
     border: 1px solid #E8D9B8;
     border-radius: 6px;
     scrollbar-width: thin;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
   }
 
   .dp-dd-item {
-    padding: 0.3rem 0.5rem;
+    height: 36px;                /* must match DD_IH constant in JS */
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     font-size: 0.82rem;
-    text-align: center;
     color: #2B2B2B;
-    border-radius: 4px;
+    user-select: none;
     transition: background 0.1s;
+    flex-shrink: 0;
   }
-  .dp-dd-item:hover  { background: #FDE9C0; }
+  .dp-dd-item:hover { background: #FDE9C0; }
   .dp-dd-sel {
     background: #F5A623;
     color: #fff;
     font-weight: 700;
+    border-radius: 4px;
   }
-  .dp-dd-sel:hover { background: #D4881A; }
 
   .dp-dd-footer {
     display: flex;
