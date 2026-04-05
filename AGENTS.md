@@ -63,9 +63,11 @@ tbc_website/
 │   ├── Dockerfile                 # node:22-slim (Debian) + ca-certificates + wrangler
 │   └── entrypoint.sh              # Writes .dev.vars from env, starts wrangler dev
 ├── public/
-│   ├── favicon.ico
-│   ├── favicon.svg
-│   └── logo.png                   # TBC logo
+│   ├── favicon.ico                # Multi-size ICO (16/32/48px) from original TBC logo
+│   ├── favicon-192.png            # 192×192 PNG for modern browsers
+│   ├── favicon.svg                # Unused legacy placeholder
+│   ├── apple-touch-icon.png       # 180×180 PNG for iOS home screen
+│   └── logo.png                   # Full TBC logo (hexagon + Toronto skyline + wordmark)
 ├── Dockerfile                     # Multi-stage: dev / build / preview (node:22-alpine)
 ├── docker-compose.yml             # Astro dev + Worker containers
 ├── astro.config.mjs
@@ -89,14 +91,14 @@ tbc_website/
 | `/members/hive-check` | `pages/members/hive-check.astro` | Dynamic hive check submission form (renders from `/hive-form` endpoint) |
 | `/members/members-list` | `pages/members/members-list.astro` | Member list table with search and column filter |
 
-**Note:** The `about.astro` yards array has 3 entries (OSC closed 2023/2024 and is in the history timeline). The `index.astro` stats bar still reads "4 Active bee yards" — this is a known inconsistency.
+**Note:** Both `index.astro` and `about.astro` reflect 3 active yards. The Ontario Science Centre closed 2023/2024 and is recorded in the history timeline on the about page only.
 
 ---
 
 ## Components
 
-- **`Base.astro`** — HTML shell. Accepts `title`, `description`, `ogImage` props. Loads Inter from Google Fonts. Named slots: `nav`, default (main), `footer`. Constructs canonical URL from `Astro.site`.
-- **`Nav.astro`** — Sticky top nav. Logo image + text, 4 links (Home, About, Membership, Members Area). Members Area link styled as `.nav-cta` (amber fill). Mobile hamburger toggle in vanilla JS. Accepts `currentPath` prop for active state.
+- **`Base.astro`** — HTML shell. Accepts `title`, `description`, `ogImage` props. Loads Inter from Google Fonts. Named slots: `nav`, default (main), `footer`. Constructs canonical URL from `Astro.site`. Favicon links: `favicon.ico` (all browsers), `favicon-192.png` (modern), `apple-touch-icon.png` (iOS).
+- **`Nav.astro`** — Sticky top nav. Logo image only (no text label), 4 links (Home, About, Membership, Members Area). Members Area link styled as `.nav-cta` (amber fill). Mobile hamburger toggle in vanilla JS. Accepts `currentPath` prop for active state.
 - **`Footer.astro`** — Dark charcoal footer. 4 columns: About/contact, Navigate, Members links, Bee Yards. Copyright year and Gmail address in footer bottom bar.
 - **`MembersNav.astro`** — Dark sub-navigation bar rendered below `.page-header` on all `/members/*` pages. 3 links: Hive Data, Hive Check Form, Members List. Amber active underline indicator.
 
