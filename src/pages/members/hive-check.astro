@@ -58,23 +58,34 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   let formStructure = null;
 
-  // ── Fetch form structure + CF identity in parallel ──────────────────
+  // ── Fetch form structure, then identity separately ──────────────────
   async function init() {
     try {
-      const [formRes, email] = await Promise.all([
-        fetch(`${WORKER_URL}/hive-form`),
-        fetchCfEmail(),
-      ]);
+      const formRes = await fetch(`${WORKER_URL}/hive-form`);
       if (!formRes.ok) throw new Error(`HTTP ${formRes.status}`);
       formStructure = await formRes.json();
       loadingEl.style.display = "none";
-      renderForm(email);
-      formWrap.style.display = "block";
+      renderForm("");          // render immediately — email fills in below
+      formWrap.style.display  = "block";
     } catch (err) {
       loadingEl.style.display = "none";
       errorEl.style.display   = "block";
       errorEl.textContent     = `Could not load form: ${err.message}`;
+      return;
     }
+
+    // Fetch identity without blocking the form load
+    fetchCfEmail().then(email => {
+      const form = formWrap.querySelector(".hc-form");
+      const bar  = formWrap.querySelector(".hc-identity");
+      if (!form) return;
+      form.dataset.email = email;
+      if (bar) {
+        bar.innerHTML = email
+          ? `Submitting as <strong>${escHtml(email)}</strong>`
+          : `Submitting anonymously — email could not be detected`;
+      }
+    });
   }
 
   // ── Section groupings ────────────────────────────────────────────────
