@@ -39,12 +39,13 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
           </select>
         </div>
         <div class="filter-group">
-          <label for="filter-date-from">From</label>
-          <input type="date" id="filter-date-from" />
-        </div>
-        <div class="filter-group">
-          <label for="filter-date-to">To</label>
-          <input type="date" id="filter-date-to" />
+          <label>Date Range</label>
+          <button type="button" id="dp-trigger" class="btn btn-outline-dark dp-trigger-btn">
+            <span id="dp-label">All dates</span>
+          </button>
+          <!-- Hidden native inputs — values kept in sync for getFiltered() -->
+          <input type="date" id="filter-date-from" style="display:none" />
+          <input type="date" id="filter-date-to"   style="display:none" />
         </div>
         <div class="filter-group">
           <label for="filter-status">Status</label>
@@ -142,8 +143,22 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     </div>
   </section>
 
-  <!-- Floating tooltip (outside container to avoid overflow clipping) -->
+  <!-- Floating tooltip -->
   <div id="cal-tooltip" role="tooltip" aria-hidden="true"></div>
+
+  <!-- Date range picker panel (fixed-position, outside container) -->
+  <div id="dp-panel" style="display:none;" aria-label="Date range picker">
+    <div class="dp-panel-header">
+      <button type="button" id="dp-prev" class="btn btn-outline-dark btn-sm">&#8249;</button>
+      <span id="dp-range-label"></span>
+      <button type="button" id="dp-next" class="btn btn-outline-dark btn-sm">&#8250;</button>
+    </div>
+    <div id="dp-months" class="dp-months"></div>
+    <div class="dp-panel-footer">
+      <span id="dp-status"></span>
+      <button type="button" id="dp-clear" class="btn btn-outline-dark btn-sm">Clear</button>
+    </div>
+  </div>
 
   <Footer slot="footer" />
 </Base>
@@ -214,6 +229,13 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   let calView  = "year";
   let calYear  = new Date().getFullYear();
   let calMonth = new Date().getMonth();
+
+  // ── Date-picker state ─────────────────────────────────────────────────
+  let dpFrom  = null;   // Date | null — selected start
+  let dpTo    = null;   // Date | null — selected end
+  let dpStep  = "from"; // "from" | "to"
+  let dpLYear = new Date().getFullYear();
+  let dpLMonth = 0;    // left-panel month (right = +1)
 
   // ── DOM refs ──────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -286,6 +308,11 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     const year = new Date().getFullYear();
     inpFrom.value = `${year}-01-01`;
     inpTo.value   = `${year}-12-31`;
+    dpFrom  = new Date(year, 0, 1);
+    dpTo    = new Date(year, 11, 31);
+    dpLYear = year;
+    dpLMonth = 0;
+    dpUpdateLabel();
 
     render();
 
@@ -358,20 +385,181 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   });
 
   selColony.addEventListener("change", render);
-  inpFrom.addEventListener("change",   () => { updateCalFromFilter(); render(); });
-  inpTo.addEventListener("change",     () => { updateCalFromFilter(); render(); });
   selStatus.addEventListener("change", render);
+  // inpFrom / inpTo are hidden; updates come only from the custom picker
 
   btnReset.addEventListener("click", () => {
     selLocation.value = "";
     selColony.value   = "";
-    inpFrom.value     = "";
-    inpTo.value       = "";
     selStatus.value   = "";
     calView  = "year";
     calYear  = new Date().getFullYear();
     calMonth = new Date().getMonth();
+    const year = new Date().getFullYear();
+    inpFrom.value = `${year}-01-01`;
+    inpTo.value   = `${year}-12-31`;
+    dpFrom  = new Date(year, 0, 1);
+    dpTo    = new Date(year, 11, 31);
+    dpStep  = "from";
+    dpLYear = year;
+    dpLMonth = 0;
+    dpUpdateLabel();
+    updateCalFromFilter();
     selLocation.dispatchEvent(new Event("change"));
+  });
+
+  // ── Date picker ──────────────────────────────────────────────────────
+  function dpUpdateLabel() {
+    const el = $("dp-label");
+    if (dpFrom && dpTo) {
+      el.textContent = `${fmtDate(dpFrom)} – ${fmtDate(dpTo)}`;
+    } else if (dpFrom) {
+      el.textContent = `${fmtDate(dpFrom)} – pick end`;
+    } else {
+      el.textContent = "All dates";
+    }
+  }
+
+  function dpOpen() {
+    const panel = $("dp-panel");
+    const btn   = $("dp-trigger");
+    const rect  = btn.getBoundingClientRect();
+    panel.style.left = Math.min(rect.left, window.innerWidth - 560) + "px";
+    panel.style.top  = (rect.bottom + window.scrollY + 6) + "px";
+    panel.style.display = "block";
+    dpRender();
+  }
+
+  function dpClose() { $("dp-panel").style.display = "none"; }
+
+  function dpRender() {
+    const wrap = $("dp-months");
+    wrap.innerHTML = "";
+
+    for (let offset = 0; offset < 2; offset++) {
+      let m = dpLMonth + offset, y = dpLYear;
+      if (m > 11) { m -= 12; y++; }
+      wrap.appendChild(dpBuildMonth(y, m));
+    }
+
+    // Range label in panel header
+    let rm = dpLMonth + 1, ry = dpLYear;
+    if (rm > 11) { rm -= 12; ry++; }
+    $("dp-range-label").textContent =
+      new Date(dpLYear, dpLMonth).toLocaleDateString("en-CA", { month: "short", year: "numeric" }) +
+      " – " +
+      new Date(ry, rm).toLocaleDateString("en-CA", { month: "short", year: "numeric" });
+
+    $("dp-status").textContent = !dpFrom
+      ? "Click a start date"
+      : !dpTo
+        ? `From: ${fmtDate(dpFrom)} — now click an end date`
+        : `${fmtDate(dpFrom)} – ${fmtDate(dpTo)}`;
+  }
+
+  function dpBuildMonth(year, month) {
+    const HEADS = ["M","T","W","T","F","S","S"];
+    const today = new Date(); today.setHours(0,0,0,0);
+    const wrap  = document.createElement("div");
+
+    const title = document.createElement("div");
+    title.className = "dp-month-title";
+    title.textContent = new Date(year, month).toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+    wrap.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "cal-grid dp-grid";
+
+    HEADS.forEach(h => {
+      const dh = document.createElement("div");
+      dh.className = "cal-dh";
+      dh.textContent = h;
+      grid.appendChild(dh);
+    });
+
+    const days   = new Date(year, month + 1, 0).getDate();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+
+    for (let i = 0; i < offset; i++) grid.appendChild(document.createElement("div"));
+
+    for (let day = 1; day <= days; day++) {
+      const d    = new Date(year, month, day);
+      const cell = document.createElement("div");
+      cell.className = "dp-day";
+      cell.textContent = String(day);
+
+      if (d.getTime() === today.getTime()) cell.classList.add("dp-today");
+      if (d > today) cell.classList.add("dp-future");
+
+      // Range highlight
+      const t0 = dpFrom ? dpFrom.getTime() : null;
+      const t1 = dpTo   ? dpTo.getTime()   : null;
+      const dt = d.getTime();
+      if (t0 && t1 && dt > t0 && dt < t1) cell.classList.add("dp-in-range");
+      if (t0 && dt === t0) cell.classList.add("dp-endpoint");
+      if (t1 && dt === t1) cell.classList.add("dp-endpoint");
+
+      cell.addEventListener("click", () => {
+        if (!dpFrom || (dpFrom && dpTo)) {
+          // Start a new selection
+          dpFrom = d; dpTo = null; dpStep = "to";
+        } else {
+          // Complete the range
+          if (d < dpFrom) { dpTo = dpFrom; dpFrom = d; }
+          else             { dpTo = d; }
+          dpStep = "from";
+          inpFrom.value = dateKey(dpFrom);
+          inpTo.value   = dateKey(dpTo);
+          dpUpdateLabel();
+          updateCalFromFilter();
+          render();
+          dpClose();
+          return;
+        }
+        dpRender();
+      });
+
+      grid.appendChild(cell);
+    }
+
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  $("dp-trigger").addEventListener("click", e => {
+    e.stopPropagation();
+    $("dp-panel").style.display === "none" ? dpOpen() : dpClose();
+  });
+
+  document.addEventListener("click", e => {
+    const panel = $("dp-panel");
+    if (panel.style.display !== "none" &&
+        !panel.contains(e.target) &&
+        e.target !== $("dp-trigger")) {
+      dpClose();
+    }
+  });
+
+  $("dp-prev").addEventListener("click", e => {
+    e.stopPropagation();
+    dpLMonth -= 2;
+    if (dpLMonth < 0) { dpLMonth += 12; dpLYear--; }
+    dpRender();
+  });
+  $("dp-next").addEventListener("click", e => {
+    e.stopPropagation();
+    dpLMonth += 2;
+    if (dpLMonth > 11) { dpLMonth -= 12; dpLYear++; }
+    dpRender();
+  });
+  $("dp-clear").addEventListener("click", e => {
+    e.stopPropagation();
+    dpFrom = null; dpTo = null; dpStep = "from";
+    inpFrom.value = ""; inpTo.value = "";
+    dpUpdateLabel();
+    updateCalFromFilter();
+    render();
+    dpClose();
   });
 
   // ── Calendar nav ──────────────────────────────────────────────────────
@@ -553,10 +741,15 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     const wrap = document.createElement("div");
     wrap.className = "cal-month";
 
-    // Month name header
+    // Month name header — click to zoom into that month
     const header = document.createElement("div");
     header.className = "cal-month-name";
     header.textContent = new Date(year, month).toLocaleDateString("en-CA", { month: "short" });
+    header.title = "Click to view full month";
+    header.addEventListener("click", () => {
+      calView = "month"; calMonth = month; calYear = year;
+      renderCalendar(getFiltered());
+    });
     wrap.appendChild(header);
 
     // 7-column grid
@@ -660,8 +853,12 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       if (from && from.getFullYear() > calYear) endMonth = -1;
       if (to   && to.getFullYear()   < calYear) endMonth = -1;
 
+      const monthCount = endMonth >= startMonth ? endMonth - startMonth + 1 : 0;
+      const cols = Math.min(Math.max(monthCount, 1), 4);
+
       const yearGrid = document.createElement("div");
       yearGrid.className = "cal-year";
+      yearGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
 
       for (let m = startMonth; m <= endMonth; m++) {
         yearGrid.appendChild(buildMonthMini(calYear, m, visitMap, today, from, to));
@@ -816,7 +1013,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     letter-spacing: 0.07em;
     color: #555;
     margin-bottom: 0.35rem;
+    text-align: center;
+    cursor: pointer;
   }
+  .cal-month-name:hover { color: #D4881A; }
 
   /* Shared 7-column grid */
   .cal-grid {
@@ -959,6 +1159,104 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   }
 
   .cal-legend-hint { font-style: italic; color: #888; }
+
+  /* ── Date range trigger button ──────────────────────────────────────── */
+  .dp-trigger-btn {
+    min-width: 200px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Date picker panel ──────────────────────────────────────────────── */
+  #dp-panel {
+    position: absolute;
+    z-index: 9998;
+    background: #fff;
+    border: 1px solid #E8D9B8;
+    border-radius: 10px;
+    padding: 1rem 1.25rem 0.85rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    min-width: 540px;
+  }
+
+  .dp-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+  }
+
+  #dp-range-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #2B2B2B;
+    text-align: center;
+    flex: 1;
+  }
+
+  .dp-months {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .dp-month-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: center;
+    color: #2B2B2B;
+    margin-bottom: 0.4rem;
+  }
+
+  .dp-grid { gap: 2px; }
+
+  .dp-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.78rem;
+    color: #2B2B2B;
+    transition: background 0.1s;
+    user-select: none;
+  }
+
+  .dp-day:not(.dp-future):hover { background: #FDE9C0; }
+  .dp-future  { color: #bbb; pointer-events: none; }
+  .dp-today   { font-weight: 700; color: #D4881A; }
+  .dp-in-range { background: #FDE9C0; border-radius: 0; }
+  .dp-endpoint {
+    background: #F5A623 !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+    font-weight: 700;
+  }
+
+  .dp-panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #E8D9B8;
+    gap: 0.5rem;
+  }
+
+  #dp-status {
+    font-size: 0.8rem;
+    color: #555;
+    flex: 1;
+  }
+
+  @media (max-width: 600px) {
+    #dp-panel { min-width: calc(100vw - 2rem); left: 1rem !important; }
+    .dp-months { grid-template-columns: 1fr; }
+  }
 </style>
 
 <!-- Scoped styles for static elements in this template -->
