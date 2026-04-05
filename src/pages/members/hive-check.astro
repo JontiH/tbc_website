@@ -32,7 +32,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     <defs>
       <filter id="hc-hex-border" x="-20%" y="-30%" width="140%" height="160%"
               color-interpolation-filters="sRGB">
-        <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded"/>
+        <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded"/>
         <feFlood flood-color="#F5A623" result="amber"/>
         <feComposite in="amber" in2="expanded" operator="in" result="border"/>
         <feMerge>
@@ -42,7 +42,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       </filter>
       <filter id="hc-hex-border-active" x="-20%" y="-30%" width="140%" height="160%"
               color-interpolation-filters="sRGB">
-        <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded"/>
+        <feMorphology in="SourceAlpha" operator="dilate" radius="2" result="expanded"/>
         <feFlood flood-color="#D4881A" result="amber-dark"/>
         <feComposite in="amber-dark" in2="expanded" operator="in" result="border"/>
         <feMerge>

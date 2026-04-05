@@ -251,9 +251,9 @@ Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version con
 
 | Key | Value |
 |---|---|
-| `CACHE_VER` | `2` (increment to bust all edge caches — see Caching section) |
+| `CACHE_VER` | `3` (increment to bust all edge caches — see Caching section) |
 | `HIVE_SHEET_ID` | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
-| `HIVE_SHEET_RANGE` | `Form responses 1!A:K` |
+| `HIVE_SHEET_RANGE` | `Form responses 1!A:J` (K was photos column, now hidden/unused) |
 | `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
 | `MEMBERS_SHEET_RANGE` | `TBC Memberships 2024!A:Z` |
 | `HIVE_FORM_ID` | `1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac` |
@@ -266,6 +266,7 @@ Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version con
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
 | CF Access App ID | `40f844bc-ff6b-4669-9ec7-22b4a52cf825` |
 | CF Access Policy ID | `d4a7448f-d652-4b66-b8da-a687077ab066` |
+| CF Access Service Token ID | `0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14` (name: `opencode-dev`, expires 2027-04-05) |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
 
@@ -358,7 +359,7 @@ Three workflows live in `.github/workflows/`:
 
 | Item | Status | Notes |
 |---|---|---|
-| **Hive photos/video** | Deferred | `photos` column exists in sheet data and form; not displayed in the hive-data UI yet |
+| **Hive photos/video** | Removed | Question deleted from Google Form; sheet column K hidden. Worker range trimmed to `A:J`. |
 | **Custom domain** | Done | `tbchivecheck.ca` pointing to Cloudflare Pages |
 | **Cloudflare Access** | Done | OTP email auth live; Access policy auto-synced nightly from members sheet |
 
@@ -417,5 +418,11 @@ The token in `.env` as `CLOUDFLARE_API_TOKEN` has these permissions:
   configured as a local git override (not global). See `git config --local --list`.
 - **Date format from Google Sheets**: Dates arrive as `DD/MM/YYYY`. JavaScript's `new Date()` cannot parse this — use the custom `parseDate()` in `hive-data.astro` which handles it explicitly.
 - **Sheet IDs are not secrets**: `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `HIVE_FORM_ID`, etc. are in `wrangler.toml` as `[vars]`, not Cloudflare secrets. Only the Google credentials (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`) are secrets.
-- **Hive check form is dynamically rendered**: `hive-check.astro` fetches form structure from `/hive-form` at runtime and renders all question types (radio, text, textarea, date, file_upload) in JS. `file_upload` questions show a fallback message since the Google Forms file upload API is not supported for programmatic submission.
+- **Hive check form is dynamically rendered**: `hive-check.astro` fetches form structure from `/hive-form` at runtime and renders questions (radio, text, textarea, date) in JS. `file_upload` questions are skipped server-side (Worker filters them from `processFormStructure`). The form reads the member's email from `GET /cdn-cgi/access/get-identity` (a Cloudflare-served endpoint on any Access-protected domain) — the `CF_Authorization` cookie is HttpOnly in current CF Access versions and cannot be read via `document.cookie`.
 - **Access policy is code-driven**: `sync-access-policy.yml` replaces manual Zero Trust dashboard edits. The allowed email list is always the source-of-truth members sheet. The CF Access App ID and Policy ID are hardcoded in the workflow YAML.
+- **Hive photos/video removed**: The Google Form question and sheet column K were removed in April 2026. Column K is hidden in the sheet (Google prevents deletion of form-linked columns). The Worker sheet range is now `A:J` and `file_upload` items are filtered before reaching the frontend.
+- **Astro CSS scoping gotcha**: `<style>` blocks in Astro are scoped by default — a `data-astro-cid-xxx` attribute is added to template elements and CSS selectors. Dynamically created DOM elements (via `document.createElement` in `<script>`) never receive this attribute, so scoped styles don't apply to them. Always use `<style is:global>` for styles that target JS-created elements.
+- **Astro external CSS + SVG filter IDs**: `filter: url('#id')` in an Astro-generated external CSS file may resolve the fragment against the CSS file's URL rather than the document. Set SVG filter references via `element.style.filter` in JavaScript instead — inline styles always resolve fragments against `document.baseURI`.
+- **SVG filter visibility**: An SVG element with `display:none` does NOT make its `<filter>` / `<defs>` resources available to the rest of the document. Use `position:absolute; width:0; height:0; overflow:hidden` to hide the SVG container while keeping its definitions usable.
+- **Uniform clip-path borders**: Two stacked `clip-path: polygon()` elements with different heights cannot produce a uniform-thickness border — the diagonal slopes differ, so the perpendicular distance varies. The correct approach is an SVG `feMorphology operator="dilate"` filter applied to a parent wrapper element (the filter must be on a *parent*, not the clipped element itself, because CSS applies `filter` before `clip-path` on the same element). The `feMorphology` expands the alpha mask isotropically by exactly N pixels in every direction.
+- **Accessing CF Access-protected pages from scripts**: Use a Cloudflare Access Service Token. Create one via `POST /accounts/{id}/access/service_tokens`, then add it as a `non_identity` policy on the Access app. Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers with curl. Credentials are in `.env` as `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`. Example: `curl -H "CF-Access-Client-Id: ..." -H "CF-Access-Client-Secret: ..." https://tbchivecheck.ca/members/hive-check`
