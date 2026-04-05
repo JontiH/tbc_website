@@ -741,8 +741,15 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     renderCalendar(getFiltered());
   });
   $("cal-toggle").addEventListener("click", () => {
-    calView  = calView === "year" ? "month" : "year";
-    if (calView === "month") calMonth = new Date().getMonth();
+    if (calView === "year") {
+      calView = "month";
+      // Default to the first month of the active filter range, not today
+      const from = inpFrom.value ? new Date(inpFrom.value + "T00:00:00") : null;
+      calYear  = from ? from.getFullYear() : new Date().getFullYear();
+      calMonth = from ? from.getMonth()    : new Date().getMonth();
+    } else {
+      calView = "year";
+    }
     renderCalendar(getFiltered());
   });
 

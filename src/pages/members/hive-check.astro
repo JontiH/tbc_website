@@ -27,38 +27,51 @@ const FORM_LINK  = "https://forms.gle/uDZw6vWgFEjZbbVJA";
 
   <section class="section">
     <div class="container">
+      <div class="form-layout">
 
-      <div class="form-card">
-        <div class="form-card-header">
-          <div>
-            <h2 class="form-card-title">Submit a Visit Record</h2>
-            <p class="form-card-desc">
-              Fill in the form after each hive visit. Submissions go directly to the shared Google Sheet
-              and appear in <a href="/members/hive-data">Hive Data</a> once the cache refreshes (up to 1 hour).
-            </p>
-          </div>
-          <a href={FORM_LINK} target="_blank" rel="noopener" class="btn btn-outline-dark form-external-btn">
-            Open in new tab ↗
+        <!-- Primary: launch card -->
+        <div class="launch-card">
+          <div class="launch-hex">🐝</div>
+          <h2>TBC Hive Checklist</h2>
+          <p class="launch-desc">
+            Fill this in after every colony visit — one submission per colony checked.
+            Covers location, colony ID, holistic status, mite count, treatments, feed, and comments.
+          </p>
+          <a href={FORM_LINK} target="_blank" rel="noopener" class="btn btn-primary launch-btn">
+            Open Hive Check Form
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </a>
+          <p class="launch-note">
+            Opens in a new tab. After submitting, your response appears in
+            <a href="/members/hive-data">Hive Data</a> within one hour.
+          </p>
         </div>
 
-        <div class="form-frame-wrap">
-          <iframe
-            src={FORM_EMBED}
-            class="form-frame"
-            frameborder="0"
-            marginheight="0"
-            marginwidth="0"
-            title="TBC Hive Check Form"
-            loading="lazy"
-          >
-            <p>Your browser does not support iframes.
-              <a href={FORM_LINK} target="_blank" rel="noopener">Open the form directly ↗</a>
-            </p>
-          </iframe>
-        </div>
+        <!-- Secondary: inline embed (works once form email collection is set to "Responder input") -->
+        <details class="embed-wrap">
+          <summary class="embed-toggle">Fill in without leaving this page</summary>
+          <div class="embed-note">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            If you see a cookie banner or login prompt below, use the button above instead.
+            The embedded view requires the form's email collection to be set to
+            <strong>Responder input</strong> (not Verified) in Google Forms settings.
+          </div>
+          <div class="embed-frame-wrap">
+            <iframe
+              src={FORM_EMBED}
+              class="embed-frame"
+              frameborder="0"
+              marginheight="0"
+              marginwidth="0"
+              title="TBC Hive Check Form (embedded)"
+              loading="lazy"
+            >
+              <a href={FORM_LINK} target="_blank" rel="noopener">Open form ↗</a>
+            </iframe>
+          </div>
+        </details>
+
       </div>
-
     </div>
   </section>
 
@@ -66,66 +79,119 @@ const FORM_LINK  = "https://forms.gle/uDZw6vWgFEjZbbVJA";
 </Base>
 
 <style>
-  .form-card {
-    max-width: 780px;
+  .form-layout {
+    max-width: 680px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* ── Launch card ─────────────────────────────────────────────────── */
+  .launch-card {
     background: var(--white);
     border: 1px solid var(--border);
+    border-top: 4px solid var(--amber);
     border-radius: var(--radius);
-    overflow: hidden;
-    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+    padding: 2.5rem 2rem;
+    text-align: center;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.06);
   }
 
-  .form-card-header {
+  .launch-hex {
+    font-size: 2.75rem;
+    line-height: 1;
+    margin-bottom: 1rem;
+  }
+
+  .launch-card h2 {
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .launch-desc {
+    color: var(--charcoal-mid);
+    font-size: 0.93rem;
+    max-width: 480px;
+    margin: 0 auto 1.75rem;
+    line-height: 1.6;
+  }
+
+  .launch-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 1rem;
+    padding: 0.7rem 1.6rem;
+  }
+
+  .launch-note {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: var(--charcoal-mid);
+  }
+
+  .launch-note a {
+    color: var(--amber-dark);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .launch-note a:hover { text-decoration: underline; }
+
+  /* ── Inline embed (collapsible) ─────────────────────────────────── */
+  .embed-wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--white);
+    overflow: hidden;
+  }
+
+  .embed-toggle {
+    display: block;
+    padding: 0.85rem 1.25rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--charcoal-mid);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .embed-toggle::-webkit-details-marker { display: none; }
+  .embed-toggle::before {
+    content: "▸ ";
+    color: var(--amber);
+    font-size: 0.75rem;
+  }
+  details[open] .embed-toggle::before { content: "▾ "; }
+  .embed-toggle:hover { color: var(--charcoal); }
+
+  .embed-note {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.5rem 1.75rem 1.25rem;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-  }
-
-  .form-card-title {
-    font-size: 1.15rem;
-    margin-bottom: 0.35rem;
-  }
-
-  .form-card-desc {
-    font-size: 0.88rem;
+    gap: 0.5rem;
+    margin: 0 1.25rem 0.75rem;
+    padding: 0.65rem 0.85rem;
+    background: var(--amber-light);
+    border-radius: 6px;
+    font-size: 0.8rem;
     color: var(--charcoal-mid);
-    margin: 0;
-    max-width: 520px;
+    line-height: 1.5;
+  }
+  .embed-note svg { flex-shrink: 0; margin-top: 1px; color: var(--amber-dark); }
+
+  .embed-frame-wrap {
+    border-top: 1px solid var(--border);
   }
 
-  .form-card-desc a {
-    color: var(--amber-dark);
-    text-decoration: none;
-    font-weight: 600;
-  }
-  .form-card-desc a:hover { text-decoration: underline; }
-
-  .form-external-btn {
-    white-space: nowrap;
-    flex-shrink: 0;
-    font-size: 0.82rem;
-    padding: 0.35rem 0.85rem;
-    align-self: center;
-  }
-
-  .form-frame-wrap {
-    background: #f9f9f9;
-  }
-
-  .form-frame {
+  .embed-frame {
     display: block;
     width: 100%;
-    height: 920px;
+    height: 900px;
     border: none;
   }
 
   @media (max-width: 600px) {
-    .form-card-header { padding: 1.1rem 1.1rem 1rem; }
-    .form-frame       { height: calc(100vh - 60px); }
+    .launch-card { padding: 1.75rem 1.25rem; }
+    .embed-frame  { height: calc(100vh - 80px); }
   }
 </style>
