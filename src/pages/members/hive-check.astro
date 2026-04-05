@@ -131,6 +131,15 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     form.className  = "hc-form";
     form.noValidate = true;
 
+    // Identity banner — always shown at the top
+    const email = getCfEmail();
+    const identityBar = document.createElement("div");
+    identityBar.className = "hc-identity";
+    identityBar.innerHTML = email
+      ? `Submitting as <strong>${escHtml(email)}</strong>`
+      : `<span class="hc-identity-unknown">Could not detect your email — make sure you are logged in via Cloudflare Access.</span>`;
+    form.appendChild(identityBar);
+
     // Optional Google Form description
     if (description) {
       const banner = document.createElement("div");
@@ -180,14 +189,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     submit.className   = "btn btn-primary hc-submit";
     submit.textContent = "Submit hive check";
     submitBlock.appendChild(submit);
-
-    const email = getCfEmail();
-    if (email) {
-      const who = document.createElement("p");
-      who.className   = "hc-submitting-as";
-      who.innerHTML   = `Submitting as <strong>${escHtml(email)}</strong>`;
-      submitBlock.appendChild(who);
-    }
 
     form.appendChild(submitBlock);
 
@@ -406,6 +407,27 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+  }
+
+  /* ── Identity banner ────────────────────────────────────────────── */
+  .hc-identity {
+    padding: 0.75rem 1.25rem;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--amber);
+    border-radius: var(--radius);
+    font-size: 0.88rem;
+    color: var(--charcoal-mid);
+    line-height: 1.4;
+  }
+
+  .hc-identity strong {
+    color: var(--charcoal);
+    font-weight: 600;
+  }
+
+  .hc-identity-unknown {
+    color: var(--status-bad);
   }
 
   /* Optional description banner from Google Form */
@@ -635,18 +657,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   .hc-submit:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-  }
-
-  .hc-submitting-as {
-    font-size: 0.82rem;
-    color: var(--charcoal-mid);
-    margin: 0;
-    line-height: 1.4;
-  }
-
-  .hc-submitting-as strong {
-    color: var(--charcoal);
-    font-weight: 600;
   }
 
   /* ── Success card ────────────────────────────────────────────────── */
