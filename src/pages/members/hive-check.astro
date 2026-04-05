@@ -28,7 +28,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
        This is the only reliable way to get a uniform border on a clip-path
        shape — two stacked clip-path polygons always have unequal thickness
        because their diagonal slopes differ when heights differ. -->
-  <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <svg style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <filter id="hc-hex-border" x="-20%" y="-30%" width="140%" height="160%"
               color-interpolation-filters="sRGB">
