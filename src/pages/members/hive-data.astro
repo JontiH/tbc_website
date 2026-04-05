@@ -563,7 +563,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
         const el = document.createElement("div");
         el.className = "dp-dd-item";
         el.dataset.i   = i;
-        el.dataset.abs = c * N + i; // absolute index in the list
+        el.dataset.abs = c * N + i;
         el.textContent = label;
         colEl.appendChild(el);
       });
@@ -575,27 +575,41 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     colEl.scrollTop = Math.max(0, targetST);
     highlightCol(colEl, selIdx);
 
-    // Scroll: update highlight, wrap, snap
     let snapTimer;
+    let lastIdx = selIdx; // track last fired index to avoid redundant callbacks
+
     colEl._dpScroll = () => {
-      // Wrap: stay within copies 1 … DD_COPIES-2
+      // Wrap: keep scrollTop within copies 1 … DD_COPIES-2
       const minST = N * DD_IH;
       const maxST = (DD_COPIES - 2) * N * DD_IH;
-      if (colEl.scrollTop < minST)       colEl.scrollTop += (DD_COPIES - 3) * N * DD_IH;
-      else if (colEl.scrollTop > maxST)  colEl.scrollTop -= (DD_COPIES - 3) * N * DD_IH;
+      if (colEl.scrollTop < minST)      colEl.scrollTop += (DD_COPIES - 3) * N * DD_IH;
+      else if (colEl.scrollTop > maxST) colEl.scrollTop -= (DD_COPIES - 3) * N * DD_IH;
 
-      // Determine centred item
-      const centerST  = colEl.scrollTop + DD_CH / 2 - DD_IH / 2;
-      const absIdx    = Math.round(centerST / DD_IH);
-      const realIdx   = ((absIdx % N) + N) % N;
+      // Determine which item is centred
+      const centerST = colEl.scrollTop + DD_CH / 2 - DD_IH / 2;
+      const absIdx   = Math.round(centerST / DD_IH);
+      const realIdx  = ((absIdx % N) + N) % N;
       highlightCol(colEl, realIdx);
-      onChangeIdx(realIdx);
 
-      // Snap to nearest item after scroll settles
+      // Only fire the callback when the index actually changes —
+      // prevents dpDdDayClamped() from rebuilding the day column on
+      // every scroll pixel, which was causing the infinite snap loop.
+      if (realIdx !== lastIdx) {
+        lastIdx = realIdx;
+        onChangeIdx(realIdx);
+      }
+
+      // Snap to nearest item after scrolling settles.
+      // Guard: only call scrollTo when we're not already at the target —
+      // this breaks the infinite loop where each snap fires a scroll event
+      // that schedules another snap.
       clearTimeout(snapTimer);
       snapTimer = setTimeout(() => {
         const snapAbs = Math.round((colEl.scrollTop + DD_CH / 2 - DD_IH / 2) / DD_IH);
-        colEl.scrollTo({ top: snapAbs * DD_IH - (DD_CH / 2 - DD_IH / 2), behavior: "smooth" });
+        const snapTop = snapAbs * DD_IH - (DD_CH / 2 - DD_IH / 2);
+        if (Math.abs(colEl.scrollTop - snapTop) > 1) {
+          colEl.scrollTo({ top: snapTop, behavior: "smooth" });
+        }
       }, 180);
     };
     colEl.addEventListener("scroll", colEl._dpScroll);
