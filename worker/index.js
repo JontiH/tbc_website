@@ -119,7 +119,6 @@ const HIVE_COLUMN_MAP = {
   "Are you doing a mite treatment? if so what type of treament?":            "treatment",
   "Are you adding feed? if so, what type of feed?":                          "feed",
   "additional comments for this colony":                                     "comments",
-  "Do you have any pictures/video of the hive to share?":                    "photos",
   "Date of Visit":                                                           "date",
   "Timestamp":                                                               "timestamp",
 };
@@ -195,11 +194,11 @@ function processFormStructure(api) {
 }
 
 // ── Sheet append helper ──────────────────────────────────────────────────────
-// Columns A-K must match the form response sheet exactly:
+// Columns A-J (photos column K is hidden and no longer used):
 // A:Timestamp  B:Email  C:Date  D:Location  E:Colony  F:Status
-// G:Treatment  H:Feed   I:Mite count  J:Comments  K:Photos
+// G:Treatment  H:Feed   I:Mite count  J:Comments
 async function appendHiveRow(sheetId, row, token) {
-  const range = encodeURIComponent("Form responses 1!A:K");
+  const range = encodeURIComponent("Form responses 1!A:J");
   const url   = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
   const res   = await fetch(url, {
     method:  "POST",
@@ -248,7 +247,6 @@ export default {
         body.feed        ?? "",   // H: Feed
         body.mite_count  ?? "",   // I: Mite count
         body.comments    ?? "",   // J: Additional comments
-        "",                       // K: Photos (not supported in custom form)
       ];
 
       try {
