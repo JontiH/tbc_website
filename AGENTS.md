@@ -24,7 +24,7 @@ beekeeping club based in Toronto, Canada. It replaces a clunky WordPress site at
 | Frontend | **Astro** (static output) | Fast static HTML, deploys perfectly to Cloudflare Pages |
 | Styling | Plain CSS (global.css) | No framework needed; custom design system |
 | Charts | **Chart.js** (CDN ESM import) | Client-side, no bundle bloat |
-| Data API | **Cloudflare Worker** | Proxies/caches Google Sheets API; keeps credentials server-side |
+| Data API | **Cloudflare Worker** | Proxies/caches Google Sheets & Forms APIs; keeps credentials server-side |
 | Auth | **Cloudflare Access** (OTP) | Free for ≤50 users; email OTP, no passwords to manage |
 | Hosting | **Cloudflare Pages** | Free tier, auto-deploy on push to `main` |
 
@@ -34,34 +34,71 @@ beekeeping club based in Toronto, Canada. It replaces a clunky WordPress site at
 
 ```
 tbc_website/
+├── .github/
+│   └── workflows/
+│       ├── deploy-pages.yml       # CI: build + deploy Astro to Cloudflare Pages
+│       ├── deploy-worker.yml      # CI: deploy Worker + set secrets
+│       └── sync-access-policy.yml # CI: nightly sync of member emails → CF Access
 ├── src/
 │   ├── layouts/
-│   │   └── Base.astro          # HTML shell: head, meta, font, slot for nav/footer
+│   │   └── Base.astro             # HTML shell: head, OG meta, Inter font, slot layout
 │   ├── components/
-│   │   ├── Nav.astro            # Sticky top nav with mobile toggle
-│   │   └── Footer.astro         # Site footer with link columns
+│   │   ├── Nav.astro              # Sticky top nav with mobile hamburger toggle
+│   │   ├── Footer.astro           # 4-column site footer
+│   │   └── MembersNav.astro       # Dark sub-nav for all /members/* pages
 │   ├── styles/
-│   │   └── global.css           # Full design system — colours, typography, components
+│   │   └── global.css             # Full design system — colours, typography, components
 │   └── pages/
-│       ├── index.astro          # Public landing page
-│       ├── about.astro          # About, history timeline, bee yards, FAQ accordion
-│       ├── membership.astro     # Membership info, requirements, timeline, perks
+│       ├── index.astro            # Public landing page
+│       ├── about.astro            # About, history timeline (1985–2024), bee yards, FAQ
+│       ├── membership.astro       # Membership info, requirements, timeline, perks
 │       └── members/
-│           ├── index.astro      # Members area hub (protected by Cloudflare Access)
-│           ├── hive-data.astro  # Hive visit chart + filterable table (fetches Worker)
-│           └── members-list.astro  # Member list table (fetches Worker; schema TBD)
+│           ├── index.astro        # Members area hub (3 section cards)
+│           ├── hive-data.astro    # Hive visit explorer: calendar, chart, filterable table
+│           ├── hive-check.astro   # Hive check submission form (fetches /hive-form Worker)
+│           └── members-list.astro # Member list table (fetches /members Worker)
 ├── worker/
-│   ├── index.js                 # Cloudflare Worker source
-│   └── wrangler.toml            # Worker deploy config
+│   ├── index.js                   # Cloudflare Worker source (~310 lines)
+│   ├── wrangler.toml              # Worker deploy config + non-secret vars
+│   ├── Dockerfile                 # node:22-slim (Debian) + ca-certificates + wrangler
+│   └── entrypoint.sh              # Writes .dev.vars from env, starts wrangler dev
 ├── public/
+│   ├── favicon.ico
 │   ├── favicon.svg
-│   └── logo.png                 # TBC logo (downloaded from torontobeekeeping.ca)
+│   └── logo.png                   # TBC logo
+├── Dockerfile                     # Multi-stage: dev / build / preview (node:22-alpine)
+├── docker-compose.yml             # Astro dev + Worker containers
 ├── astro.config.mjs
 ├── package.json
-├── .env.example
-├── SETUP.md                     # One-time setup instructions (Google Cloud, CF Access, etc.)
-└── AGENTS.md                    # This file
+├── .env.example                   # Template — only HIVE_WORKER_URL
+├── SETUP.md                       # One-time setup instructions
+└── AGENTS.md                      # This file
 ```
+
+---
+
+## Pages
+
+| Route | File | Purpose |
+|---|---|---|
+| `/` | `pages/index.astro` | Hero, stats bar, "What is TBC" section, bee yards cards, Join CTA |
+| `/about` | `pages/about.astro` | Mission, history timeline (1985–2024), 3 active yards, FAQ accordion |
+| `/membership` | `pages/membership.astro` | Application process, timeline, commitment grid, perks, callout |
+| `/members` | `pages/members/index.astro` | Hub with 3 cards linking to Hive Data, Hive Check Form, Members List |
+| `/members/hive-data` | `pages/members/hive-data.astro` | Filters, visit calendar heatmap, mite count scatter chart, sortable table |
+| `/members/hive-check` | `pages/members/hive-check.astro` | Dynamic hive check submission form (renders from `/hive-form` endpoint) |
+| `/members/members-list` | `pages/members/members-list.astro` | Member list table with search and column filter |
+
+**Note:** The `about.astro` yards array has 3 entries (OSC closed 2023/2024 and is in the history timeline). The `index.astro` stats bar still reads "4 Active bee yards" — this is a known inconsistency.
+
+---
+
+## Components
+
+- **`Base.astro`** — HTML shell. Accepts `title`, `description`, `ogImage` props. Loads Inter from Google Fonts. Named slots: `nav`, default (main), `footer`. Constructs canonical URL from `Astro.site`.
+- **`Nav.astro`** — Sticky top nav. Logo image + text, 4 links (Home, About, Membership, Members Area). Members Area link styled as `.nav-cta` (amber fill). Mobile hamburger toggle in vanilla JS. Accepts `currentPath` prop for active state.
+- **`Footer.astro`** — Dark charcoal footer. 4 columns: About/contact, Navigate, Members links, Bee Yards. Copyright year and Gmail address in footer bottom bar.
+- **`MembersNav.astro`** — Dark sub-navigation bar rendered below `.page-header` on all `/members/*` pages. 3 links: Hive Data, Hive Check Form, Members List. Amber active underline indicator.
 
 ---
 
@@ -79,43 +116,63 @@ Defined in `src/styles/global.css`. All values use CSS custom properties.
 | `--charcoal` | `#2B2B2B` | Primary text, dark backgrounds |
 | `--charcoal-mid` | `#555555` | Secondary/muted text |
 | `--cream` | `#FFF8EE` | Page background |
+| `--white` | `#FFFFFF` | |
 | `--border` | `#E8D9B8` | Card/input borders |
-| `--status-good` | `#2E7D32` | Green — healthy hive |
-| `--status-mid` | `#F57F17` | Amber/yellow — okay hive |
-| `--status-bad` | `#C62828` | Red — concerning hive |
+| `--status-good` | `#2E7D32` | Green — strong hive |
+| `--status-good-bg` | `#E8F5E9` | Green background for status badges |
+| `--status-mid` | `#F57F17` | Amber/yellow — neutral hive |
+| `--status-mid-bg` | `#FFF9C4` | Amber background for status badges |
+| `--status-bad` | `#C62828` | Red — weak hive |
+| `--status-bad-bg` | `#FFEBEE` | Red background for status badges |
+| `--radius` | `8px` | Default border radius |
+| `--shadow` | `0 2px 8px rgba(43,43,43,0.10)` | Card shadow |
+| `--shadow-lg` | `0 4px 24px rgba(43,43,43,0.14)` | Elevated card shadow |
+| `--max-width` | `1100px` | Container max width |
 
 ### Key CSS classes
 
 - `.container` — max-width wrapper (1100px), horizontal padding
-- `.section` / `.section-alt` — page sections with standard vertical padding
-- `.card` / `.card-grid` — white card component and auto-fit grid
+- `.section` / `.section-alt` — page sections with standard vertical padding; alt has white background
+- `.section-header` — heading + subtext block with 2.5rem bottom margin
+- `.card` / `.card-grid` — white card component and auto-fit grid (min 280px)
 - `.btn`, `.btn-primary`, `.btn-outline`, `.btn-outline-dark` — button variants
-- `.badge`, `.badge-good`, `.badge-mid`, `.badge-bad` — status badge pills
-- `.page-header` — dark header band with hexagonal SVG background
-- `.hero` — full-width dark hero with hexagonal background
-- `.table-wrap` / `table` — styled responsive table
+- `.badge`, `.badge-good`, `.badge-mid`, `.badge-bad`, `.badge-unknown` — status badge pills
+- `.page-header` — dark charcoal header with hexagonal SVG background
+- `.hero` — full-width dark gradient hero with hexagonal background
+- `.nav`, `.nav-inner`, `.nav-logo`, `.nav-links`, `.nav-toggle` — navigation
+- `.table-wrap` / `table` — styled responsive table with dark thead
 - `.filters` — filter bar with `.filter-group` children
-- `.timeline` / `.timeline-item` — vertical timeline for history page
-- `.faq-item` / `.faq-question` / `.faq-answer` — accessible accordion
+- `.chart-container` / `.chart-title` — chart wrapper
+- `.timeline` / `.timeline-item` / `.timeline-year` — vertical history timeline
+- `.faq-item` / `.faq-question` / `.faq-answer` — accessible accordion (max-height animation)
+- `.members-grid` / `.member-card` / `.member-card-icon` — members hub card layout
+- `.hex-accent` — hexagonal clip-path icon container
+- `.loading` / `.error-msg` — loading and error states
+- Utilities: `.text-amber`, `.text-muted`, `.mt-1` through `.mt-4`, `.mb-0`
 
 ---
 
-## Google Sheets Integration
+## Google Sheets & Forms Integration
 
 ### Architecture
 
 ```
-Browser → Cloudflare Worker (/hive-data or /members) → Google Sheets API v4
+Browser → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
+                           → Google Forms API v1    (read form structure)
+                           → Google Sheets API v4   (append hive check submission)
                 ↑
-         1-hour cache (Cloudflare Cache API)
+         1-hour server-side cache (Cloudflare Cache API)
 ```
 
 ### Worker endpoints
 
-| Endpoint | Sheet | Notes |
+| Method | Endpoint | Description |
 |---|---|---|
-| `GET /hive-data` | Hive notes Google Form responses | Strips `Email address` column; renames columns to short keys |
-| `GET /members` | Members list Google Sheet | Returns `{ headers, rows }` — frontend renders dynamically |
+| `GET` | `/hive-data` | Fetches hive visit records. Strips `Email address`; maps verbose column names to short keys. Returns `{ rows }`. Cached 1 hour. |
+| `GET` | `/members` | Fetches members list. Returns `{ headers, rows }` as-is. Cached 1 hour. |
+| `GET` | `/hive-form` | Fetches hive check form structure from Google Forms API. Converts question types to clean JSON (`date`, `text`, `textarea`, `radio`, `checkbox`, `file_upload`). Converts hex questionId → decimal entryId. Returns `{ formId, title, description, submitUrl, responderUri, items }`. Cached 1 hour. |
+| `POST` | `/hive-form-submit` | Accepts JSON body, constructs a row in sheet column order (A:Timestamp, B:Email, C:Date, D:Location, E:Colony, F:Status, G:Treatment, H:Feed, I:Mite count, J:Comments, K:Photos), appends to hive sheet via Sheets API `values.append`. Not cached. |
+| `OPTIONS` | `*` | CORS preflight — returns 204 with CORS headers. |
 
 ### Hive data column mapping
 
@@ -137,7 +194,7 @@ The Worker renames verbose Google Form column headers to short keys for the fron
 
 ### Status normalisation
 
-Hive status is a free-text field. `hive-data.astro` normalises it to `good/mid/bad/unknown`
+Hive status is a free-text field. `hive-data.astro` normalises it to `strong/neutral/weak/unknown`
 using keyword matching in `normaliseStatus()`. If the field is changed to a dropdown with
 fixed choices, update this function accordingly.
 
@@ -146,6 +203,11 @@ fixed choices, update this function accordingly.
 The Worker uses a Google Service Account (RS256 JWT → OAuth2 token exchange) implemented
 entirely with the Web Crypto API (`crypto.subtle`) — no Node.js dependencies. Secrets are
 stored as Cloudflare Worker secrets (never in code or env files).
+
+OAuth2 scopes used:
+- `spreadsheets.readonly` — for `/hive-data` and `/members`
+- `spreadsheets` (read+write) — for `/hive-form-submit`
+- `forms.body.readonly` — for `/hive-form`
 
 ---
 
@@ -156,8 +218,9 @@ The Astro site itself has no auth logic — Access intercepts requests before th
 static files and shows a login page for unapproved visitors.
 
 **Auth method:** One-time PIN (OTP) sent to the member's email address.
-**User management:** Done in the Cloudflare Zero Trust dashboard — edit the Access policy
-email list when members join or leave. No code changes needed.
+**User management:** Automated — the `sync-access-policy.yml` GitHub Action runs nightly
+and syncs email addresses from the members Google Sheet directly to the Cloudflare Access
+allow policy. No manual dashboard changes needed when members join or leave.
 **Session duration:** Configurable in the Access policy (default: 24 hours).
 
 ### Members sheet columns
@@ -191,6 +254,7 @@ Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version con
 | `HIVE_SHEET_RANGE` | `Form responses 1!A:K` |
 | `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
 | `MEMBERS_SHEET_RANGE` | `TBC Memberships 2024!A:Z` |
+| `HIVE_FORM_ID` | `1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac` |
 
 **Other non-secret config:**
 
@@ -198,6 +262,8 @@ Non-secret config lives in `worker/wrangler.toml` under `[vars]` — version con
 |---|---|
 | Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
+| CF Access App ID | `40f844bc-ff6b-4669-9ec7-22b4a52cf825` |
+| CF Access Policy ID | `d4a7448f-d652-4b66-b8da-a687077ab066` |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
 
@@ -267,15 +333,22 @@ See `SETUP.md` for full first-time setup instructions.
 
 ## GitHub Actions (CI/CD)
 
-Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual `workflow_dispatch`.
+Three workflows live in `.github/workflows/`:
 
-**Key details:**
-- Uses `actions/setup-node@v4` with `node-version: 22` — not the `container:` approach
-- Secrets are passed to `wrangler secret put` via `printf '%s'` not `echo` — avoids corrupting the multi-line PEM key
-- The `Set secrets` step has an `if: success()` guard so it doesn't run if the deploy itself fails
-- Only 3 GitHub Secrets needed now: `CLOUDFLARE_API_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` — sheet IDs/ranges are in `wrangler.toml` vars
-- Pages deploy (`deploy-pages.yml`) is triggered on all `main` pushes **except** `worker/**` changes
-- Worker deploy (`deploy-worker.yml`) is triggered only on `worker/**` changes
+**`deploy-pages.yml`** — Triggers on push to `main` (excluding `worker/**`) and `workflow_dispatch`.
+- Checkout → setup Node 22 → `npm install` → `npm run build` → `wrangler pages deploy dist --project-name=tbc-website`
+
+**`deploy-worker.yml`** — Triggers on push to `main` (only `worker/**` paths) and `workflow_dispatch`.
+- Checkout → setup Node 22 → install wrangler → `wrangler deploy` → (on success) `wrangler secret put` for both Google secrets via `printf '%s'` (safe for multi-line PEM key)
+- Only 3 GitHub Secrets needed: `CLOUDFLARE_API_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` — sheet IDs/ranges/form ID are in `wrangler.toml` vars
+
+**`sync-access-policy.yml`** — Triggers nightly at 05:00 UTC (midnight Toronto EDT) and `workflow_dispatch`.
+- Fetches `/members` from the live Worker
+- Extracts all `Email` values using Python3
+- Builds a Cloudflare Access allow-policy JSON
+- `PUT`s to the Cloudflare API to update the Access policy for the TBC Members Area app
+- Verifies `success: true` in the response
+- Automates member email management — no manual Zero Trust dashboard changes needed
 
 ---
 
@@ -283,18 +356,19 @@ Worker deploy is triggered on push to `main` (paths: `worker/**`) and via manual
 
 | Item | Status | Notes |
 |---|---|---|
-| **Hive photos/video** | Deferred | Column exists in sheet data; not displayed in UI yet |
-| **Custom domain** | Post-deploy | Point `torontobeekeeping.ca` to Cloudflare Pages once live |
-| **Cloudflare Access** | Pending | Add OTP email auth protecting `/members/*` |
+| **Hive photos/video** | Deferred | `photos` column exists in sheet data and form; not displayed in the hive-data UI yet |
+| **Custom domain** | Done | `tbchivecheck.ca` pointing to Cloudflare Pages |
+| **Cloudflare Access** | Done | OTP email auth live; Access policy auto-synced nightly from members sheet |
 
 ---
 
 ## Caching
 
-The Worker uses Cloudflare's Cache API (`caches.default`) to cache Google Sheets responses for 1 hour server-side. Key design decisions and gotchas:
+The Worker uses Cloudflare's Cache API (`caches.default`) to cache responses for 1 hour server-side. Key design decisions and gotchas:
 
 - **Browser caching is disabled** — the Worker returns `Cache-Control: no-store` to clients. Caching is handled entirely server-side. This prevents browsers from holding stale empty responses.
-- **Cache key includes `CACHE_VER` and sheet ID** — so changing either automatically busts the edge cache without needing to purge manually.
+- **`POST /hive-form-submit` is never cached** — it always hits the Sheets API directly.
+- **Cache key includes `CACHE_VER` and sheet/form ID** — so changing either automatically busts the edge cache without needing to purge manually.
 - **To bust the cache**: increment `CACHE_VER` in `worker/wrangler.toml` and push. The worker redeploys and all edge nodes start fresh.
 - **workers.dev cache is not purgeable via API** — the `workers.dev` subdomain is not a user-managed Cloudflare zone, so the standard cache purge API doesn't work for it. `CACHE_VER` is the escape hatch.
 - **Different Cloudflare edge nodes have separate caches** — a cache hit on one edge doesn't mean another edge has it. This is why curl and a browser can return different results during a transition.
@@ -326,7 +400,7 @@ The token in `.env` as `CLOUDFLARE_API_TOKEN` has these permissions:
 
 ## Key Decisions
 
-- **No server-side rendering**: The site is fully static. All dynamic content (charts, tables)
+- **No server-side rendering**: The site is fully static. All dynamic content (charts, tables, forms)
   is fetched client-side from the Worker. This keeps hosting free and simple.
 - **Email hidden from frontend**: The Worker strips the `Email address` column from hive data
   before returning JSON. It is never sent to the browser, even for authenticated members.
@@ -336,8 +410,10 @@ The token in `.env` as `CLOUDFLARE_API_TOKEN` has these permissions:
 - **Chart.js via CDN ESM**: Avoids bundling Chart.js into the Astro build. Loaded on demand
   only on the hive-data page.
 - **No framework (React/Vue/Svelte)**: Not needed. Interactive elements (accordion, mobile nav,
-  charts, filters) are implemented with plain vanilla JS in `<script>` blocks.
+  charts, filters, form rendering) are implemented with plain vanilla JS in `<script>` blocks.
 - **Git identity**: This repo uses the `JontiH` GitHub account with the `~/.ssh/JontiH` key,
   configured as a local git override (not global). See `git config --local --list`.
 - **Date format from Google Sheets**: Dates arrive as `DD/MM/YYYY`. JavaScript's `new Date()` cannot parse this — use the custom `parseDate()` in `hive-data.astro` which handles it explicitly.
-- **Sheet IDs are not secrets**: `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, etc. are in `wrangler.toml` as `[vars]`, not Cloudflare secrets. Only the Google credentials (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`) are secrets.
+- **Sheet IDs are not secrets**: `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `HIVE_FORM_ID`, etc. are in `wrangler.toml` as `[vars]`, not Cloudflare secrets. Only the Google credentials (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`) are secrets.
+- **Hive check form is dynamically rendered**: `hive-check.astro` fetches form structure from `/hive-form` at runtime and renders all question types (radio, text, textarea, date, file_upload) in JS. `file_upload` questions show a fallback message since the Google Forms file upload API is not supported for programmatic submission.
+- **Access policy is code-driven**: `sync-access-policy.yml` replaces manual Zero Trust dashboard edits. The allowed email list is always the source-of-truth members sheet. The CF Access App ID and Policy ID are hardcoded in the workflow YAML.
