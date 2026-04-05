@@ -51,9 +51,9 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
           <label for="filter-status">Status</label>
           <select id="filter-status">
             <option value="">All Statuses</option>
-            <option value="good">Good</option>
-            <option value="mid">Okay</option>
-            <option value="bad">Concerning</option>
+            <option value="strong">Strong 👍</option>
+            <option value="neutral">Neutral 👋</option>
+            <option value="weak">Weak 👎</option>
           </select>
         </div>
         <div class="filter-group" style="justify-content: flex-end;">
@@ -65,22 +65,15 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       <div id="loading-state" class="loading">Loading hive data...</div>
       <div id="error-state" class="error-msg" style="display:none;"></div>
 
-
       <!-- Charts -->
       <div id="charts-area" style="display:none;">
-        <div class="charts-row">
-          <div class="chart-container" style="flex:2;">
-            <div class="chart-title">Visits Over Time</div>
-            <canvas id="chart-visits" height="90"></canvas>
-          </div>
-          <div class="chart-container" style="flex:1;">
-            <div class="chart-title">Status Distribution</div>
-            <canvas id="chart-status" height="90"></canvas>
-          </div>
+        <div class="chart-container" style="margin-bottom: 1.25rem;">
+          <div class="chart-title">Hive Status Over Time</div>
+          <canvas id="chart-status-time" height="90"></canvas>
         </div>
-        <div id="mite-chart-wrap" class="chart-container" style="display:none;">
+        <div id="mite-chart-wrap" class="chart-container" style="display:none; margin-bottom: 0;">
           <div class="chart-title">Mite Count Over Time</div>
-          <canvas id="chart-mites" height="70"></canvas>
+          <canvas id="chart-mites" height="90"></canvas>
         </div>
       </div>
 
@@ -135,48 +128,42 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 </Base>
 
 <script define:vars={{ WORKER_URL }}>
-  // ── Column indices (0-based) from the Google Sheet ──────────────────
-  // 0: Timestamp
-  // 1: Email address        (stripped by Worker)
-  // 2: Where is the hive located?
-  // 3: Which Colony are you checking (A,B,C...)?
-  // 4: How would you describe the holistic status of this hive?
-  // 5: What is the mite count?
-  // 6: Are you doing a mite treatment?
-  // 7: Are you adding feed?
-  // 8: if you are adding feed, what type?
-  // 9: Do you have any pictures/video...   (deferred)
-  // 10: additional comments for this colony
-  // 11: Date of Visit
-
   const COL = {
-    LOCATION: "location",
-    COLONY:   "colony",
-    STATUS:   "status",
-    MITE:     "mite_count",
-    TREATMENT:"treatment",
-    FEED:     "feed",
-    FEED_TYPE:"feed_type",
-    COMMENTS: "comments",
-    DATE:     "date",
+    LOCATION:  "location",
+    COLONY:    "colony",
+    STATUS:    "status",
+    MITE:      "mite_count",
+    TREATMENT: "treatment",
+    FEED:      "feed",
+    COMMENTS:  "comments",
+    DATE:      "date",
   };
 
   // ── Status normalisation ─────────────────────────────────────────────
+  // Sheet values: "weak👎"  "neutral 👋"  "strong 👍"
   function normaliseStatus(raw) {
     if (!raw) return "unknown";
     const s = raw.toLowerCase();
-    if (s.includes("good") || s.includes("great") || s.includes("thriv") || s.includes("strong") || s.includes("excellent")) return "good";
-    if (s.includes("okay") || s.includes("ok") || s.includes("fair") || s.includes("average") || s.includes("concern")) return "mid";
-    if (s.includes("bad") || s.includes("poor") || s.includes("weak") || s.includes("dead") || s.includes("critical") || s.includes("struggling")) return "bad";
-    return "mid"; // default to mid for unrecognised values
+    if (s.includes("strong")) return "strong";
+    if (s.includes("neutral")) return "neutral";
+    if (s.includes("weak")) return "weak";
+    return "unknown";
+  }
+
+  function statusScore(status) {
+    return { strong: 3, neutral: 2, weak: 1 }[status] ?? null;
+  }
+
+  function statusLabel(status) {
+    return { strong: "Strong 👍", neutral: "Neutral 👋", weak: "Weak 👎", unknown: "Unknown" }[status] ?? "Unknown";
   }
 
   function statusBadge(status) {
     const map = {
-      good:    ["badge-good",  "Good"],
-      mid:     ["badge-mid",   "Okay"],
-      bad:     ["badge-bad",   "Concerning"],
-      unknown: ["badge-unknown","Unknown"],
+      strong:  ["badge-good", "Strong 👍"],
+      neutral: ["badge-mid",  "Neutral 👋"],
+      weak:    ["badge-bad",  "Weak 👎"],
+      unknown: ["badge-unknown", "Unknown"],
     };
     const [cls, label] = map[status] ?? map.unknown;
     return `<span class="badge ${cls}">${label}</span>`;
@@ -227,7 +214,8 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       const res = await fetch(`${WORKER_URL}/hive-data`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      allRows = json.rows ?? [];
+      // Assign a stable _id to each row for chart→table linking
+      allRows = (json.rows ?? []).map((r, i) => ({ ...r, _id: i }));
       init();
     } catch (err) {
       loadingEl.style.display = "none";
@@ -256,25 +244,24 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
     render();
 
-    chartsArea.style.display   = "block";
-    summaryRow.style.display   = "flex";
-    tableArea.style.display    = "block";
+    chartsArea.style.display = "block";
+    summaryRow.style.display = "flex";
+    tableArea.style.display  = "block";
   }
 
   // ── Filtering ────────────────────────────────────────────────────────
   function getFiltered() {
     const loc      = selLocation.value;
     const colony   = selColony.value;
-    const from     = inpFrom.value   ? new Date(inpFrom.value)   : null;
-    const to       = inpTo.value     ? new Date(inpTo.value + "T23:59:59") : null;
+    const from     = inpFrom.value ? new Date(inpFrom.value)                 : null;
+    const to       = inpTo.value   ? new Date(inpTo.value + "T23:59:59")     : null;
     const statFilt = selStatus.value;
 
     return allRows.filter(r => {
       if (loc    && r[COL.LOCATION] !== loc)    return false;
       if (colony && r[COL.COLONY]   !== colony) return false;
       if (statFilt) {
-        const s = normaliseStatus(r[COL.STATUS]);
-        if (s !== statFilt) return false;
+        if (normaliseStatus(r[COL.STATUS]) !== statFilt) return false;
       }
       const d = parseDate(r[COL.DATE]);
       if (from && d && d < from) return false;
@@ -304,10 +291,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     render();
   });
 
-  selColony.addEventListener("change",   render);
-  inpFrom.addEventListener("change",     render);
-  inpTo.addEventListener("change",       render);
-  selStatus.addEventListener("change",   render);
+  selColony.addEventListener("change",  render);
+  inpFrom.addEventListener("change",    render);
+  inpTo.addEventListener("change",      render);
+  selStatus.addEventListener("change",  render);
 
   btnReset.addEventListener("click", () => {
     selLocation.value = "";
@@ -318,13 +305,24 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     selLocation.dispatchEvent(new Event("change"));
   });
 
+  // ── Scroll to table row and flash it ────────────────────────────────
+  function scrollToRow(_id) {
+    const tr = document.getElementById("entry-" + _id);
+    if (!tr) return;
+    tr.scrollIntoView({ behavior: "smooth", block: "center" });
+    tr.classList.remove("row-highlight");
+    // Force reflow so removing+re-adding the class re-triggers animation
+    void tr.offsetWidth;
+    tr.classList.add("row-highlight");
+  }
+
   // ── Main render ──────────────────────────────────────────────────────
   function render() {
     const rows = getFiltered();
-
     renderSummary(rows);
-    renderTable(rows);
-    renderCharts(rows);
+    // renderTable returns the sorted order so renderCharts can reference row IDs
+    const sortedRows = renderTable(rows);
+    renderCharts(rows, sortedRows);
   }
 
   // ── Summary ──────────────────────────────────────────────────────────
@@ -335,17 +333,17 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
     const mites = rows.map(r => parseFloat(r[COL.MITE])).filter(n => !isNaN(n));
     $("stat-mite-avg").textContent = mites.length
-      ? (mites.reduce((a,b) => a+b, 0) / mites.length).toFixed(1)
+      ? (mites.reduce((a, b) => a + b, 0) / mites.length).toFixed(1)
       : "—";
   }
 
-  // ── Table ────────────────────────────────────────────────────────────
+  // ── Table — returns sorted rows (newest first) ───────────────────────
   function renderTable(rows) {
     tableBody.innerHTML = "";
 
     if (rows.length === 0) {
       tableEmpty.style.display = "block";
-      return;
+      return [];
     }
     tableEmpty.style.display = "none";
 
@@ -362,6 +360,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     sorted.forEach(r => {
       const status = normaliseStatus(r[COL.STATUS]);
       const tr = document.createElement("tr");
+      tr.id = "entry-" + r._id;
       tr.innerHTML = `
         <td>${fmtDate(parseDate(r[COL.DATE]))}</td>
         <td>${r[COL.LOCATION] ?? "—"}</td>
@@ -374,110 +373,186 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
       `;
       tableBody.appendChild(tr);
     });
+
+    return sorted;
   }
 
   // ── Charts ───────────────────────────────────────────────────────────
-  async function renderCharts(rows) {
+  async function renderCharts(rows, sortedRows) {
     const { Chart, registerables } = await import("https://cdn.jsdelivr.net/npm/chart.js@4/+esm");
     Chart.register(...registerables);
 
-    // ── Visits over time (line chart, grouped by month) ──────────────
-    const visitsByMonth = {};
-    rows.forEach(r => {
-      const d = parseDate(r[COL.DATE]);
-      if (!d) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-      visitsByMonth[key] = (visitsByMonth[key] ?? 0) + 1;
-    });
-    const visitLabels = Object.keys(visitsByMonth).sort();
-    const visitData   = visitLabels.map(k => visitsByMonth[k]);
+    // ── Status Over Time (scatter, score 1–3) ────────────────────────
+    // Points sorted ascending by date
+    const statusPoints = rows
+      .map(r => {
+        const d     = parseDate(r[COL.DATE]);
+        const norm  = normaliseStatus(r[COL.STATUS]);
+        const score = statusScore(norm);
+        if (!d || score === null) return null;
+        return {
+          x:       d.getTime(),
+          y:       score,
+          _id:     r._id,
+          dateStr: fmtDate(d),
+          colony:  r[COL.COLONY] ?? "?",
+          location: r[COL.LOCATION] ?? "?",
+          statusLabel: statusLabel(norm),
+          norm,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x);
 
-    if (charts.visits) charts.visits.destroy();
-    charts.visits = new Chart($("chart-visits"), {
-      type: "line",
+    // Colour each point by status level
+    const STATUS_COLOURS = { strong: "#2E7D32", neutral: "#F57F17", weak: "#C62828", unknown: "#9E9E9E" };
+
+    if (charts.statusTime) charts.statusTime.destroy();
+    charts.statusTime = new Chart($("chart-status-time"), {
+      type: "scatter",
       data: {
-        labels: visitLabels,
         datasets: [{
-          label: "Visits",
-          data: visitData,
-          borderColor: "#F5A623",
-          backgroundColor: "rgba(245,166,35,0.12)",
-          tension: 0.3,
-          fill: true,
-          pointBackgroundColor: "#F5A623",
-        }],
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 1 } },
-          x: { grid: { display: false } },
-        },
-      },
-    });
-
-    // ── Status distribution (doughnut) ───────────────────────────────
-    const statusCount = { good: 0, mid: 0, bad: 0, unknown: 0 };
-    rows.forEach(r => { statusCount[normaliseStatus(r[COL.STATUS])]++; });
-
-    if (charts.status) charts.status.destroy();
-    charts.status = new Chart($("chart-status"), {
-      type: "doughnut",
-      data: {
-        labels: ["Good", "Okay", "Concerning", "Unknown"],
-        datasets: [{
-          data: [statusCount.good, statusCount.mid, statusCount.bad, statusCount.unknown],
-          backgroundColor: ["#2E7D32", "#F57F17", "#C62828", "#9E9E9E"],
-          borderWidth: 2,
-          borderColor: "#fff",
+          label: "Hive Status",
+          data: statusPoints,
+          backgroundColor: statusPoints.map(p => STATUS_COLOURS[p.norm] ?? "#9E9E9E"),
+          borderColor:     statusPoints.map(p => STATUS_COLOURS[p.norm] ?? "#9E9E9E"),
+          pointRadius: 6,
+          pointHoverRadius: 8,
         }],
       },
       options: {
         responsive: true,
         plugins: {
-          legend: { position: "bottom", labels: { font: { size: 11 } } },
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: () => "",
+              label: ctx => {
+                const p = ctx.raw;
+                return [
+                  p.dateStr,
+                  `Colony ${p.colony} @ ${p.location}`,
+                  `Status: ${p.statusLabel}`,
+                ];
+              },
+            },
+          },
         },
-        cutout: "65%",
+        scales: {
+          x: {
+            type: "linear",
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 8,
+              callback: value => {
+                const d = new Date(value);
+                return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "2-digit" });
+              },
+            },
+          },
+          y: {
+            min: 0.5,
+            max: 3.5,
+            ticks: {
+              stepSize: 1,
+              callback: v => ({ 1: "Weak 👎", 2: "Neutral 👋", 3: "Strong 👍" })[v] ?? "",
+            },
+            grid: { color: "rgba(0,0,0,0.06)" },
+          },
+        },
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const p = statusPoints[elements[0].index];
+          if (p) scrollToRow(p._id);
+        },
+        onHover: (evt, elements) => {
+          evt.native.target.style.cursor = elements.length ? "pointer" : "default";
+        },
       },
     });
 
-    // ── Mite count over time ─────────────────────────────────────────
-    const miteRows = rows
-      .filter(r => r[COL.MITE] !== "" && r[COL.MITE] != null && !isNaN(parseFloat(r[COL.MITE])))
-      .map(r => ({ date: parseDate(r[COL.DATE]), val: parseFloat(r[COL.MITE]), colony: r[COL.COLONY] ?? "?" }))
-      .filter(r => r.date)
-      .sort((a, b) => a.date - b.date);
+    // ── Mite Count Over Time (scatter) ───────────────────────────────
+    const mitePoints = rows
+      .map(r => {
+        const d   = parseDate(r[COL.DATE]);
+        const val = parseFloat(r[COL.MITE]);
+        if (!d || isNaN(val)) return null;
+        return {
+          x:        d.getTime(),
+          y:        val,
+          _id:      r._id,
+          dateStr:  fmtDate(d),
+          colony:   r[COL.COLONY] ?? "?",
+          location: r[COL.LOCATION] ?? "?",
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.x - b.x);
 
-    if (miteRows.length > 0) {
+    if (mitePoints.length > 0) {
       miteWrap.style.display = "block";
       if (charts.mites) charts.mites.destroy();
       charts.mites = new Chart($("chart-mites"), {
-        type: "line",
+        type: "scatter",
         data: {
-          labels: miteRows.map(r => fmtDate(r.date)),
           datasets: [{
             label: "Mite Count",
-            data: miteRows.map(r => r.val),
+            data: mitePoints,
+            backgroundColor: "rgba(198,40,40,0.75)",
             borderColor: "#C62828",
-            backgroundColor: "rgba(198,40,40,0.08)",
-            tension: 0.2,
-            fill: true,
-            pointBackgroundColor: "#C62828",
-            pointRadius: 4,
+            pointRadius: 6,
+            pointHoverRadius: 8,
           }],
         },
         options: {
           responsive: true,
-          plugins: { legend: { display: false } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: () => "",
+                label: ctx => {
+                  const p = ctx.raw;
+                  return [
+                    p.dateStr,
+                    `Colony ${p.colony} @ ${p.location}`,
+                    `Mite count: ${p.y}`,
+                  ];
+                },
+              },
+            },
+          },
           scales: {
-            y: { beginAtZero: true, title: { display: true, text: "Mites per 100 bees" } },
-            x: { grid: { display: false } },
+            x: {
+              type: "linear",
+              grid: { display: false },
+              ticks: {
+                maxTicksLimit: 8,
+                callback: value => {
+                  const d = new Date(value);
+                  return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "2-digit" });
+                },
+              },
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: "Mites per 100 bees" },
+              grid: { color: "rgba(0,0,0,0.06)" },
+            },
+          },
+          onClick: (evt, elements) => {
+            if (!elements.length) return;
+            const p = mitePoints[elements[0].index];
+            if (p) scrollToRow(p._id);
+          },
+          onHover: (evt, elements) => {
+            evt.native.target.style.cursor = elements.length ? "pointer" : "default";
           },
         },
       });
     } else {
       miteWrap.style.display = "none";
+      if (charts.mites) { charts.mites.destroy(); charts.mites = null; }
     }
   }
 
@@ -486,12 +561,6 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 </script>
 
 <style>
-  .charts-row {
-    display: flex;
-    gap: 1.25rem;
-    margin-bottom: 0;
-  }
-
   .summary-row {
     display: flex;
     gap: 1rem;
@@ -527,7 +596,13 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
     letter-spacing: 0.04em;
   }
 
-  @media (max-width: 720px) {
-    .charts-row { flex-direction: column; }
+  /* Row highlight on chart click */
+  @keyframes rowFlash {
+    0%   { background-color: var(--amber-light); }
+    100% { background-color: transparent; }
+  }
+
+  .row-highlight {
+    animation: rowFlash 2s ease-out forwards;
   }
 </style>
