@@ -266,7 +266,11 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       let otherInput = null;
 
       for (const opt of item.options) {
-        const pill  = document.createElement("label");
+        // Outer shell provides the amber border via clip-path overflow
+        const shell = document.createElement("span");
+        shell.className = "hc-pill-shell";
+
+        const pill = document.createElement("label");
         pill.className = "hc-pill";
 
         const input = document.createElement("input");
@@ -279,7 +283,8 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
         pill.appendChild(input);
         pill.appendChild(document.createTextNode(opt.isOther ? "Other" : opt.value));
-        group.appendChild(pill);
+        shell.appendChild(pill);
+        group.appendChild(shell);
 
         if (opt.isOther) {
           otherInput = document.createElement("input");
@@ -582,11 +587,13 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   /* ── Honeycomb radio / checkbox options ─────────────────────────── */
   /*
-   * clip-path creates the <===> shape:
-   *   - 11px angled left and right ends (fixed, regardless of width)
-   *   - top and bottom are straight horizontal lines that grow with content
-   * Extra padding on left/right accounts for the angled portion.
-   * border is replaced by filter: drop-shadow since clip-path clips borders.
+   * Two-layer approach for a crisp amber outline matching the nav bar (3px):
+   *   .hc-pill-shell  — outer amber hex; the 3px "border" is just this showing
+   *   .hc-pill        — inner cream hex, inset 3px inside the shell
+   *
+   * Both share the same clip-path polygon. The amber bleeds through on all
+   * edges at exactly 3px. Wider labels get longer top/bottom lines; the
+   * angled <  > ends are always the same fixed width.
    */
   .hc-pill-group {
     display: flex;
@@ -595,12 +602,41 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     margin-top: 0.25rem;
   }
 
+  /* ── Outer shell (amber "border") ── */
+  .hc-pill-shell {
+    display: inline-flex;
+    background: var(--amber);
+    clip-path: polygon(
+      11px 0%,
+      calc(100% - 11px) 0%,
+      100% 50%,
+      calc(100% - 11px) 100%,
+      11px 100%,
+      0% 50%
+    );
+    padding: 3px;
+    cursor: pointer;
+    transition: background 0.12s, filter 0.12s;
+    filter: drop-shadow(0 1px 3px rgba(43,43,43,0.1));
+  }
+
+  .hc-pill-shell:hover {
+    background: var(--amber-dark);
+    filter: drop-shadow(0 2px 5px rgba(212,136,26,0.3));
+  }
+
+  .hc-pill-shell:has(.hc-pill-input:checked) {
+    background: var(--amber-dark);
+    filter: drop-shadow(0 2px 6px rgba(212,136,26,0.45));
+  }
+
+  /* ── Inner fill ── */
   .hc-pill {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 36px;
-    padding: 0 calc(1rem + 11px);
+    height: 30px;
+    padding: 0 calc(0.9rem + 11px);
     background: var(--cream);
     clip-path: polygon(
       11px 0%,
@@ -610,26 +646,22 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       11px 100%,
       0% 50%
     );
-    filter: drop-shadow(0 0 1px rgba(43,43,43,0.22)) drop-shadow(0 1px 2px rgba(43,43,43,0.08));
     font-size: 0.88rem;
     color: var(--charcoal);
-    cursor: pointer;
     user-select: none;
     white-space: nowrap;
     line-height: 1;
-    transition: background 0.12s, filter 0.12s, color 0.12s;
+    transition: background 0.12s, color 0.12s;
   }
 
-  .hc-pill:hover {
+  .hc-pill-shell:hover .hc-pill {
     background: var(--amber-light);
-    filter: drop-shadow(0 0 1.5px rgba(212,136,26,0.5)) drop-shadow(0 1px 3px rgba(212,136,26,0.2));
   }
 
-  .hc-pill:has(.hc-pill-input:checked) {
+  .hc-pill-shell:has(.hc-pill-input:checked) .hc-pill {
     background: var(--amber);
     color: var(--white);
     font-weight: 600;
-    filter: drop-shadow(0 0 1px rgba(212,136,26,0.6)) drop-shadow(0 2px 5px rgba(212,136,26,0.4));
   }
 
   .hc-pill-input {
