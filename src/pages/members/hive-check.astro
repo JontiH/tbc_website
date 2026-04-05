@@ -23,6 +23,36 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   <MembersNav currentPath={currentPath} />
 
+  <!-- SVG filter: expands the hex shape outward by exactly 3px in every
+       direction using feMorphology dilate, then floods with amber.
+       This is the only reliable way to get a uniform border on a clip-path
+       shape — two stacked clip-path polygons always have unequal thickness
+       because their diagonal slopes differ when heights differ. -->
+  <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="hc-hex-border" x="-20%" y="-30%" width="140%" height="160%"
+              color-interpolation-filters="sRGB">
+        <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded"/>
+        <feFlood flood-color="#F5A623" result="amber"/>
+        <feComposite in="amber" in2="expanded" operator="in" result="border"/>
+        <feMerge>
+          <feMergeNode in="border"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <filter id="hc-hex-border-active" x="-20%" y="-30%" width="140%" height="160%"
+              color-interpolation-filters="sRGB">
+        <feMorphology in="SourceAlpha" operator="dilate" radius="3" result="expanded"/>
+        <feFlood flood-color="#D4881A" result="amber-dark"/>
+        <feComposite in="amber-dark" in2="expanded" operator="in" result="border"/>
+        <feMerge>
+          <feMergeNode in="border"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+  </svg>
+
   <section class="section">
     <div class="container">
       <div class="hc-wrap">
@@ -266,10 +296,6 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       let otherInput = null;
 
       for (const opt of item.options) {
-        // Outer shell provides the amber border via clip-path overflow
-        const shell = document.createElement("span");
-        shell.className = "hc-pill-shell";
-
         const pill = document.createElement("label");
         pill.className = "hc-pill";
 
@@ -283,8 +309,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
         pill.appendChild(input);
         pill.appendChild(document.createTextNode(opt.isOther ? "Other" : opt.value));
-        shell.appendChild(pill);
-        group.appendChild(shell);
+        group.appendChild(pill);
 
         if (opt.isOther) {
           otherInput = document.createElement("input");
@@ -587,25 +612,25 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
   /* ── Honeycomb radio / checkbox options ─────────────────────────── */
   /*
-   * Two-layer approach for a crisp amber outline matching the nav bar (3px):
-   *   .hc-pill-shell  — outer amber hex; the 3px "border" is just this showing
-   *   .hc-pill        — inner cream hex, inset 3px inside the shell
-   *
-   * Both share the same clip-path polygon. The amber bleeds through on all
-   * edges at exactly 3px. Wider labels get longer top/bottom lines; the
-   * angled <  > ends are always the same fixed width.
+   * Single element approach using an SVG feMorphology filter for the border.
+   * feMorphology "dilate" expands the alpha mask outward by exactly 3px in
+   * every direction — perfectly uniform regardless of angle. No two-layer
+   * clip-path geometry needed.
    */
   .hc-pill-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.55rem 0.4rem;
+    gap: 0.55rem 0.5rem;
     margin-top: 0.25rem;
   }
 
-  /* ── Outer shell (amber "border") ── */
-  .hc-pill-shell {
+  .hc-pill {
     display: inline-flex;
-    background: var(--amber);
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    padding: 0 calc(0.9rem + 11px);
+    background: var(--cream);
     clip-path: polygon(
       11px 0%,
       calc(100% - 11px) 0%,
@@ -614,61 +639,25 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       11px 100%,
       0% 50%
     );
-    padding: 3px;
-    cursor: pointer;
-    transition: background 0.12s, filter 0.12s;
-    filter: drop-shadow(0 1px 3px rgba(43,43,43,0.1));
-  }
-
-  .hc-pill-shell:hover {
-    background: var(--amber-dark);
-    filter: drop-shadow(0 2px 5px rgba(212,136,26,0.3));
-  }
-
-  .hc-pill-shell:has(.hc-pill-input:checked) {
-    background: var(--amber-dark);
-    filter: drop-shadow(0 2px 6px rgba(212,136,26,0.45));
-  }
-
-  /* ── Inner fill ── */
-  /*
-   * Perpendicular border thickness = 3px everywhere.
-   * The inner clip-path is NOT the same as the shell's — because the slopes
-   * of the angled sides differ when the element is shorter.
-   * Derived: corner inset = 6.7px, tip inset = 0.5px from each edge.
-   * This gives exactly 3px amber perpendicular to every edge of the shell.
-   */
-  .hc-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 30px;
-    padding: 0 calc(0.9rem + 10px);
-    background: var(--cream);
-    clip-path: polygon(
-      9.7px 0%,
-      calc(100% - 9.7px) 0%,
-      calc(100% - 0.5px) 50%,
-      calc(100% - 9.7px) 100%,
-      9.7px 100%,
-      0.5px 50%
-    );
+    filter: url('#hc-hex-border');
     font-size: 0.88rem;
     color: var(--charcoal);
+    cursor: pointer;
     user-select: none;
     white-space: nowrap;
     line-height: 1;
     transition: background 0.12s, color 0.12s;
   }
 
-  .hc-pill-shell:hover .hc-pill {
+  .hc-pill:hover {
     background: var(--amber-light);
   }
 
-  .hc-pill-shell:has(.hc-pill-input:checked) .hc-pill {
+  .hc-pill:has(.hc-pill-input:checked) {
     background: var(--amber);
     color: var(--white);
     font-weight: 600;
+    filter: url('#hc-hex-border-active');
   }
 
   .hc-pill-input {
