@@ -296,6 +296,13 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       let otherInput = null;
 
       for (const opt of item.options) {
+        // Shell carries the SVG filter; pill carries the clip-path.
+        // They must be on separate elements: filter runs before clip-path
+        // in the CSS rendering pipeline, so if both were on the same element
+        // the clip-path would erase the border the filter just created.
+        const shell = document.createElement("span");
+        shell.className = "hc-pill-shell";
+
         const pill = document.createElement("label");
         pill.className = "hc-pill";
 
@@ -309,7 +316,8 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
         pill.appendChild(input);
         pill.appendChild(document.createTextNode(opt.isOther ? "Other" : opt.value));
-        group.appendChild(pill);
+        shell.appendChild(pill);
+        group.appendChild(shell);
 
         if (opt.isOther) {
           otherInput = document.createElement("input");
@@ -624,6 +632,19 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
     margin-top: 0.25rem;
   }
 
+  /* Shell: holds the SVG border filter — no clip-path here */
+  .hc-pill-shell {
+    display: inline-flex;
+    filter: url('#hc-hex-border');
+    transition: filter 0.12s;
+    cursor: pointer;
+  }
+
+  .hc-pill-shell:has(.hc-pill-input:checked) {
+    filter: url('#hc-hex-border-active');
+  }
+
+  /* Pill: holds the hex clip-path and fill — no filter here */
   .hc-pill {
     display: inline-flex;
     align-items: center;
@@ -639,25 +660,22 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
       11px 100%,
       0% 50%
     );
-    filter: url('#hc-hex-border');
     font-size: 0.88rem;
     color: var(--charcoal);
-    cursor: pointer;
     user-select: none;
     white-space: nowrap;
     line-height: 1;
     transition: background 0.12s, color 0.12s;
   }
 
-  .hc-pill:hover {
+  .hc-pill-shell:hover .hc-pill {
     background: var(--amber-light);
   }
 
-  .hc-pill:has(.hc-pill-input:checked) {
+  .hc-pill-shell:has(.hc-pill-input:checked) .hc-pill {
     background: var(--amber);
     color: var(--white);
     font-weight: 600;
-    filter: url('#hc-hex-border-active');
   }
 
   .hc-pill-input {
