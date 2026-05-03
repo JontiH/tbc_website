@@ -153,12 +153,20 @@ Defined in `src/styles/global.css`. All values use CSS custom properties.
 ### Architecture
 
 ```
-Browser → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
-                           → Google Forms API v1    (read form structure)
-                           → Google Sheets API v4   (append hive check submission)
-                ↑
-         1-hour server-side cache (Cloudflare Cache API)
+Browser → Cloudflare Access → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
+          (api.torontobeekeeping.ca)            → Google Forms API v1    (read form structure)
+                                                → Google Sheets API v4   (append hive check submission)
+                                       ↑
+                                1-hour server-side cache (Cloudflare Cache API)
 ```
+
+The Worker is fronted by Cloudflare Access on `api.torontobeekeeping.ca`.
+Browsers SSO through transparently via the `CF_Authorization` cookie set by
+Access on the team domain — `fetch()` calls from the site must include
+`credentials: "include"` to send the cookie cross-origin. Scripts and CI
+use the `opencode-dev` service token to bypass Access. The `*.workers.dev`
+URL is disabled (`workers_dev = false`) so the Access policy can't be
+sidestepped.
 
 ### Worker endpoints
 
@@ -212,10 +220,14 @@ Routes under `/members/*` are protected by **Cloudflare Access** at the Cloudfla
 
 ### Members sheet columns
 
-`Name`, `Email`, `Phone Number`, `Committees`, `Partner liaison`, `Swarm Brigade`, `Nearest Intersection`
+Live sheet currently has 3 columns: `Name`, `Email`, `Phone Number`.
+The Worker reads `TBC Memberships!A:C` (sheet tab named `TBC Memberships`).
 
-- `Committees` and `Swarm Brigade` are comma-separated values
 - Rows are objects keyed by header name — use `row[header]` not `row[i]`
+- Earlier iterations of the sheet had additional columns (`Committees`,
+  `Partner liaison`, `Swarm Brigade`, `Nearest Intersection`); they were
+  dropped to keep the sheet focused. Re-add columns to the sheet *and*
+  widen `MEMBERS_SHEET_RANGE` together if needed.
 
 ---
 
@@ -238,11 +250,11 @@ Non-secret config in `worker/wrangler.toml` under `[vars]`:
 
 | Key | Value |
 |---|---|
-| `CACHE_VER` | `3` (increment to bust all edge caches) |
+| `CACHE_VER` | `5` (increment to bust all edge caches) |
 | `HIVE_SHEET_ID` | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
 | `HIVE_SHEET_RANGE` | `Form responses 1!A:J` |
 | `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
-| `MEMBERS_SHEET_RANGE` | `TBC Memberships 2024!A:Z` |
+| `MEMBERS_SHEET_RANGE` | `TBC Memberships!A:C` |
 | `HIVE_FORM_ID` | `1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac` |
 
 **Other non-secret config:**
@@ -250,11 +262,12 @@ Non-secret config in `worker/wrangler.toml` under `[vars]`:
 | Key | Value |
 |---|---|
 | Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
-| Cloudflare Zone ID | `6483c778b21c665836110a7c9c173aec` |
+| Cloudflare Zone ID (`tbchivecheck.ca`) | `6483c778b21c665836110a7c9c173aec` |
+| Cloudflare Zone ID (`torontobeekeeping.ca`) | `875a91dd2ee58d534459eafaa3b49336` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| CF Access App ID | `40f844bc-ff6b-4669-9ec7-22b4a52cf825` |
-| CF Access Policy ID (email allow) | `d4a7448f-d652-4b66-b8da-a687077ab066` |
-| CF Access Service Token ID | `0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14` (name: `opencode-dev`, expires 2027-04-05) |
+| CF Access App: Site (tbchivecheck.ca/members) | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066` |
+| CF Access App: API Worker (api.torontobeekeeping.ca) | id=`c1dc162a-804d-4c6f-a1ff-69413807fbd0`, email policy=`69f44e34-3fe5-4698-8f81-e5df91b3aff4`, service-token policy=`ee001274-703e-413c-8e12-a606f856d8be` |
+| CF Access Service Token (opencode-dev) | id=`0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14`, client_id=`2e5b134fc2029cdb755476ee143f6c9e.access`, expires 2027-05-03 |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
 
@@ -299,14 +312,16 @@ Pushing to `main` auto-deploys via `deploy-pages.yml`.
 - Production URL: `https://tbc-website-btd.pages.dev`
 - Custom domain: `https://tbchivecheck.ca`
 - Build command: `npm run build`
-- Build env: `HIVE_WORKER_URL=https://tbc-sheets-worker.jbhmario.workers.dev`
+- Build env: `HIVE_WORKER_URL=https://api.torontobeekeeping.ca`
 
 ### Cloudflare Worker (API)
 
 Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 
 - Worker name: `tbc-sheets-worker`
-- Worker URL: `https://tbc-sheets-worker.jbhmario.workers.dev`
+- Public URL: `https://api.torontobeekeeping.ca` (Cloudflare Access protected)
+- `*.workers.dev` is disabled (`workers_dev = false` in `wrangler.toml`)
+- Custom domain bound via `[[routes]]` block with `custom_domain = true`
 
 ---
 
@@ -317,9 +332,10 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 **`deploy-worker.yml`** — Triggers on push to `main` (only `worker/**`) and `workflow_dispatch`. Sets Google secrets via `wrangler secret put` on each deploy.
 
 **`sync-access-policy.yml`** — Triggers nightly at 05:00 UTC (midnight Toronto EDT) and `workflow_dispatch`.
-- Fetches `/members` from the live Worker, extracts all `Email` values, builds a CF Access allow-policy JSON, and `PUT`s it to the Cloudflare API.
-- **Does not check for changes before running** — always does a full PUT even if the member list is unchanged. This is a known inefficiency (see Next Steps).
-- **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy so it survives the nightly sync. Do not merge it into the email policy.
+- Fetches `/members` from the live Worker (using the `opencode-dev` service token to bypass Access on `api.torontobeekeeping.ca`), extracts all `Email` values, and updates the email allow policy on **both** Access apps (site + API Worker).
+- **Skips the PUT if the policy is already in sync** — diffs the current Access policy against the desired list per app and only PUTs if they differ.
+- **Refuses to push an empty list** — guards against accidental wipeout if the Worker returns no rows.
+- **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy on each app so it survives the nightly sync. Do not merge it into the email policy.
 
 ---
 
@@ -343,6 +359,7 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 ### Cloudflare API Token permissions
 
 - Workers Scripts: Edit
+- Workers Routes: Edit
 - Cloudflare Pages: Edit
 - Account Settings: Read
 - Zone - DNS: Edit / Zone: Read
@@ -374,11 +391,9 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 
 - **Mobile optimisation**: Review all pages on small screens. Known areas to check: hive-check form section cards, hex pill wrapping, hive-data filter bar, members-list table, nav hamburger menu.
 - **Bug hunt**: General QA pass across all pages — look for layout breaks, JS errors, missing data edge cases (empty hive data, missing fields in member rows).
-- **Nightly sync change detection**: `sync-access-policy.yml` currently does a blind PUT every night. It should fetch the current policy first, diff it against the member list, and skip the PUT if nothing changed. This saves API calls and avoids unnecessary policy churn.
 - **Worker timestamp timezone**: `new Date()` in the Worker is UTC. Google Form submissions use Toronto local time. Submissions via the custom form will have timestamps offset from real Google Form submissions by up to 5 hours. Fix by formatting the timestamp in `America/Toronto` timezone using `Intl.DateTimeFormat`.
-- **Stale WORKER_URL fallback in hive-data and members-list**: The fallback URL in `hive-data.astro` and `members-list.astro` is `https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev` — a placeholder that will fail if `HIVE_WORKER_URL` is not set at build time. Update to the real Worker URL like `hive-check.astro` already does.
 - **Form submission error uses `alert()`**: `hive-check.astro` calls `alert()` on submission failure. This is ugly and inconsistent with the rest of the UI. Replace with an inline error state below the submit button.
-- **Members sheet range year is hardcoded**: `MEMBERS_SHEET_RANGE = "TBC Memberships 2024!A:Z"` in `wrangler.toml`. If the sheet tab is renamed (e.g. for 2025), the Worker will break silently. Either rename the tab to something year-agnostic or add a note to update this each year.
+- **Members sheet tab name is now `TBC Memberships`**: Year-agnostic — won't drift on Jan 1. The spreadsheet *file* title may still include a year, but that's display only and the Worker doesn't read it.
 - **No custom 404 page**: Astro generates a default 404 that won't match the site design. Add a `src/pages/404.astro` matching the site's style.
 - **OG / social sharing images**: No `og:image` is set for any page. Adding page-specific OG images would improve link previews when members share the site.
 - **New Google Form URL**: The public Google Form URL was not regenerated/closed — anyone with the old link can still submit directly to the sheet, bypassing the website form. Consider creating a new Form (updating `HIVE_FORM_ID`) or closing the existing one in the Google Forms UI to disable direct submissions.

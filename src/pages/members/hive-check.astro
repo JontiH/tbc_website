@@ -5,7 +5,7 @@ import MembersNav from "../../components/MembersNav.astro";
 import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-check";
-const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.jbhmario.workers.dev";
+const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
 ---
 
 <Base
@@ -91,7 +91,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
   // ── Fetch form structure, then identity separately ──────────────────
   async function init() {
     try {
-      const formRes = await fetch(`${WORKER_URL}/hive-form`);
+      const formRes = await fetch(`${WORKER_URL}/hive-form`, { credentials: "include" });
       if (!formRes.ok) throw new Error(`HTTP ${formRes.status}`);
       formStructure = await formRes.json();
       loadingEl.style.display = "none";
@@ -425,9 +425,10 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worke
 
     try {
       const res = await fetch(`${WORKER_URL}/hive-form-submit`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify(payload),
+        method:      "POST",
+        credentials: "include",
+        headers:     { "Content-Type": "application/json" },
+        body:        JSON.stringify(payload),
       });
 
       if (!res.ok) {

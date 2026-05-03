@@ -6,7 +6,7 @@ import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/members-list";
 
-const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev";
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
 ---
 
 <Base
@@ -92,7 +92,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
 
   async function fetchMembers() {
     try {
-      const res = await fetch(`${WORKER_URL}/members`);
+      const res = await fetch(`${WORKER_URL}/members`, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 

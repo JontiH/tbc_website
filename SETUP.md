@@ -64,6 +64,11 @@ npx wrangler deploy     # deploy the worker
 Note the Worker URL — it will be something like:
 `https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev`
 
+For TBC, the Worker is exposed on a custom domain protected by Cloudflare
+Access: `https://api.torontobeekeeping.ca`. Once the migration is verified,
+the `*.workers.dev` URL is disabled (`workers_dev = false` in `wrangler.toml`)
+so the Access policy cannot be bypassed.
+
 ### Set Worker Secrets
 
 Run each of these and paste the value when prompted:
@@ -88,11 +93,14 @@ npx wrangler secret put MEMBERS_SHEET_RANGE
 # paste: Sheet1!A:Z  (adjust tab name and column range to match your sheet)
 ```
 
-Test the Worker:
+Test the Worker (via the workers.dev URL before locking it down, OR via
+the custom domain with a service token):
 ```
-https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev/hive-data
-https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev/members
+https://api.torontobeekeeping.ca/hive-data
+https://api.torontobeekeeping.ca/members
 ```
+Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers to bypass
+Access. See AGENTS.md for the service token IDs.
 
 ---
 
@@ -108,7 +116,7 @@ https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev/members
    - **Build command**: `npm run build`
    - **Build output directory**: `dist`
 5. Add environment variable:
-   - `HIVE_WORKER_URL` = `https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev`
+   - `HIVE_WORKER_URL` = `https://api.torontobeekeeping.ca`
 6. Click Deploy
 
 ### Subsequent deploys

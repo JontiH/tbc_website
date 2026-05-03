@@ -6,7 +6,7 @@ import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-data";
 
-const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev";
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
 ---
 
 <Base
@@ -319,7 +319,9 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://tbc-sheets-worker
   // ── Fetch ─────────────────────────────────────────────────────────────
   async function fetchData() {
     try {
-      const res = await fetch(`${WORKER_URL}/hive-data`);
+      // credentials: "include" sends the CF_Authorization cookie cross-origin
+      // so the Access-protected Worker authenticates the member's session.
+      const res = await fetch(`${WORKER_URL}/hive-data`, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       allRows = (json.rows ?? []).map((r, i) => ({ ...r, _id: i }));

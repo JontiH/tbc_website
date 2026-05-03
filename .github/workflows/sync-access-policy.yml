@@ -1,6 +1,13 @@
 name: Sync Cloudflare Access Policy
 
-# Runs nightly + can be triggered manually from the Actions tab
+# Runs nightly + can be triggered manually from the Actions tab.
+# Pulls the member list from the Access-protected Worker (using the
+# opencode-dev service token to bypass Access) and updates the email allow
+# policies on BOTH Access apps:
+#   - "TBC Members Area"   (site at tbchivecheck.ca/members/*)
+#   - "TBC API Worker"     (api.torontobeekeeping.ca)
+# Skips the PUT for either app if its current emails already match.
+
 on:
   schedule:
     - cron: "0 5 * * *"   # 05:00 UTC = midnight Toronto (EDT)
@@ -9,53 +16,119 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      LC_ALL: C
+      CF_TOKEN:        ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT:      "7679249973b3ca7cd658c198c69e1e5e"
+      # Site app (tbchivecheck.ca/members/*)
+      SITE_APP_ID:     "40f844bc-ff6b-4669-9ec7-22b4a52cf825"
+      SITE_POLICY_ID:  "d4a7448f-d652-4b66-b8da-a687077ab066"
+      # API app (api.torontobeekeeping.ca)
+      API_APP_ID:      "c1dc162a-804d-4c6f-a1ff-69413807fbd0"
+      API_POLICY_ID:   "69f44e34-3fe5-4698-8f81-e5df91b3aff4"
+      WORKER_URL:      "https://api.torontobeekeeping.ca"
+      CF_ACCESS_CLIENT_ID:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+
     steps:
-      - name: Fetch member emails from Worker and update Access policy
-        env:
-          CF_TOKEN:     ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT:   "7679249973b3ca7cd658c198c69e1e5e"
-          CF_APP_ID:    "40f844bc-ff6b-4669-9ec7-22b4a52cf825"
-          CF_POLICY_ID: "d4a7448f-d652-4b66-b8da-a687077ab066"
-          WORKER_URL:   "https://tbc-sheets-worker.jbhmario.workers.dev"
+      - name: Sync member emails to Cloudflare Access policies
         run: |
           set -euo pipefail
 
-          echo "Fetching member list from Worker..."
-          MEMBERS=$(curl -sf "$WORKER_URL/members")
+          echo "Fetching member list from $WORKER_URL/members ..."
+          MEMBERS=$(curl -sf \
+            -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+            -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+            "$WORKER_URL/members")
 
-          EMAIL_COUNT=$(echo "$MEMBERS" | python3 -c "
+          # Sorted, lowercased, deduped email list — used for both diffing and
+          # generating the include[] payload.
+          DESIRED_EMAILS=$(echo "$MEMBERS" | python3 -c '
           import json, sys
           data = json.load(sys.stdin)
-          emails = [r['Email'].strip() for r in data['rows'] if r.get('Email','').strip()]
-          print(len(emails))
-          ")
-          echo "Found $EMAIL_COUNT members with email addresses"
+          emails = sorted({r["Email"].strip().lower() for r in data["rows"] if r.get("Email","").strip()})
+          print("\n".join(emails))
+          ')
+          EMAIL_COUNT=$(echo "$DESIRED_EMAILS" | grep -c . || true)
+          echo "Found $EMAIL_COUNT members with email addresses."
 
-          echo "Building policy payload..."
-          PAYLOAD=$(echo "$MEMBERS" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          rules = [{'email': {'email': r['Email'].strip()}} for r in data['rows'] if r.get('Email','').strip()]
-          print(json.dumps({
-              'name': 'TBC Members',
-              'decision': 'allow',
-              'precedence': 1,
-              'include': rules
-          }))
-          ")
-
-          echo "Updating Cloudflare Access policy..."
-          RESPONSE=$(curl -sf -X PUT \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/access/apps/$CF_APP_ID/policies/$CF_POLICY_ID" \
-            -H "Authorization: Bearer $CF_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD")
-
-          SUCCESS=$(echo "$RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('success', False))")
-          if [ "$SUCCESS" != "True" ]; then
-            echo "ERROR: Cloudflare API returned failure:"
-            echo "$RESPONSE" | python3 -m json.tool
+          if [ "$EMAIL_COUNT" -lt 1 ]; then
+            echo "ERROR: refusing to push an empty member list."
             exit 1
           fi
 
-          echo "Access policy updated successfully with $EMAIL_COUNT allowed emails."
+          DESIRED_INCLUDE=$(echo "$DESIRED_EMAILS" | python3 -c '
+          import json, sys
+          rules = [{"email": {"email": e}} for e in sys.stdin.read().splitlines() if e]
+          print(json.dumps(rules))
+          ')
+
+          # ─── update_policy LABEL APP_ID POLICY_ID PRECEDENCE NAME ────────
+          update_policy() {
+            local LABEL="$1" APP="$2" POLICY="$3" PRECEDENCE="$4" NAME="$5"
+
+            echo
+            echo "── $LABEL ──"
+            local CURRENT
+            CURRENT=$(curl -sf \
+              -H "Authorization: Bearer $CF_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/access/apps/$APP/policies/$POLICY")
+
+            local CURRENT_EMAILS
+            CURRENT_EMAILS=$(echo "$CURRENT" | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)
+          emails = sorted({r["email"]["email"].strip().lower() for r in d["result"].get("include", []) if "email" in r})
+          print("\n".join(emails))
+          ')
+
+            if [ "$CURRENT_EMAILS" = "$DESIRED_EMAILS" ]; then
+              local n
+              n=$(echo "$CURRENT_EMAILS" | grep -c . || true)
+              echo "$LABEL: no changes ($n emails)."
+              return 0
+            fi
+
+            local TO_ADD TO_REMOVE
+            TO_ADD=$(comm -13 <(echo "$CURRENT_EMAILS") <(echo "$DESIRED_EMAILS"))
+            TO_REMOVE=$(comm -23 <(echo "$CURRENT_EMAILS") <(echo "$DESIRED_EMAILS"))
+
+            echo "$LABEL: needs update."
+            echo "  add ($([ -z "$TO_ADD" ] && echo 0 || echo "$TO_ADD" | wc -l)):"
+            [ -n "$TO_ADD" ] && echo "$TO_ADD" | sed 's/^/    + /'
+            echo "  remove ($([ -z "$TO_REMOVE" ] && echo 0 || echo "$TO_REMOVE" | wc -l)):"
+            [ -n "$TO_REMOVE" ] && echo "$TO_REMOVE" | sed 's/^/    - /'
+
+            local PAYLOAD
+            PAYLOAD=$(NAME="$NAME" PRECEDENCE="$PRECEDENCE" DESIRED_INCLUDE="$DESIRED_INCLUDE" python3 -c '
+          import json, os
+          print(json.dumps({
+            "name":       os.environ["NAME"],
+            "decision":   "allow",
+            "precedence": int(os.environ["PRECEDENCE"]),
+            "include":    json.loads(os.environ["DESIRED_INCLUDE"]),
+          }))
+          ')
+
+            local RESPONSE
+            RESPONSE=$(curl -sf -X PUT \
+              "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/access/apps/$APP/policies/$POLICY" \
+              -H "Authorization: Bearer $CF_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD")
+
+            local SUCCESS
+            SUCCESS=$(echo "$RESPONSE" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("success", False))')
+            if [ "$SUCCESS" != "True" ]; then
+              echo "ERROR: $LABEL update failed:"
+              echo "$RESPONSE" | python3 -m json.tool
+              exit 1
+            fi
+            echo "$LABEL: updated to $EMAIL_COUNT emails."
+          }
+
+          update_policy "Site app"        "$SITE_APP_ID" "$SITE_POLICY_ID" 1 "TBC Members"
+          update_policy "API Worker app"  "$API_APP_ID"  "$API_POLICY_ID"  2 "TBC Members"
+
+          echo
+          echo "Sync complete."

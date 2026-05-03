@@ -28,7 +28,7 @@ jobs:
       - name: Build site
         run: npm run build
         env:
-          HIVE_WORKER_URL: https://tbc-sheets-worker.jbhmario.workers.dev
+          HIVE_WORKER_URL: https://api.torontobeekeeping.ca
 
       - name: Deploy to Cloudflare Pages
         run: npx wrangler pages deploy dist --project-name=tbc-website --commit-dirty=true
