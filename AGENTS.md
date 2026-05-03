@@ -3,6 +3,105 @@
 Toronto Beekeepers Collective — Astro static site + Cloudflare Worker API.
 Read this before making changes.
 
+## ⚠ Work In Progress (last touched 2026-05-02)
+
+The members area is currently **broken in the browser** following an
+incomplete migration of the Worker behind Cloudflare Access. The Worker
+itself, the API, the sync workflow, and the service-token bypass all work
+correctly — but a member visiting `/members/hive-data` (etc.) sees
+`Failed to load hive data: NetworkError when attempting to fetch resource`
+because the browser's `fetch()` to `api.torontobeekeeping.ca` gets
+redirected to the Access login page (cross-origin → CORS-blocked).
+
+### How we got here
+
+Previously the Worker was reachable at `tbc-sheets-worker.jbhmario.workers.dev`
+with **no auth** — anyone on the internet could `curl /members` and get
+every member's name, email, and phone number. To fix that:
+
+1. Added a custom domain `api.torontobeekeeping.ca` to the Worker
+2. Created a NEW Cloudflare Access app (`TBC API Worker`,
+   id=`c1dc162a-804d-4c6f-a1ff-69413807fbd0`) covering that hostname
+3. Attached an email-allow policy + `opencode-dev` service-token policy
+4. Wired the frontend to fetch from `api.torontobeekeeping.ca` with
+   `credentials: "include"`
+5. Updated `sync-access-policy.yml` to use the service token and update
+   BOTH Access apps' email policies (site + API)
+6. Updated `worker/index.js` CORS to echo a specific origin and allow
+   credentials (required when `credentials: "include"` is in play)
+
+The `*.workers.dev` URL is still alive (`workers_dev = true` in
+`wrangler.toml`) as a safety fallback **but the deployed Pages bundle no
+longer points at it** — production members hit the broken
+`api.torontobeekeeping.ca` flow.
+
+### Why it's broken
+
+Cloudflare Access issues per-app cookies. When a member is logged into the
+**site app** (`tbchivecheck.ca/members` / `torontobeekeeping.ca/members`),
+they have a `CF_AppSession` cookie scoped to that hostname only. They do
+NOT yet have one for `api.torontobeekeeping.ca` (the **API Worker app**).
+On first hit, Access redirects to `torontobeekeeping.cloudflareaccess.com`
+to mint a new app cookie — but the redirect target is a different origin,
+and `fetch()` cannot follow cross-origin redirects on credentialed CORS
+requests. The browser blocks it as a CORS violation.
+
+The cross-app SSO works for top-level navigations (Access redirects, sets
+the new cookie, redirects back) but not for `fetch()`.
+
+### The intended fix (NOT YET DONE)
+
+Drop `tbchivecheck.ca` as an active site host. It will become a vanity
+redirect: **`tbchivecheck.ca/*` → `https://torontobeekeeping.ca/members/hive-check`**
+(any path, 301). The site only ever runs on `torontobeekeeping.ca`.
+
+This makes the site (`torontobeekeeping.ca`) and the API
+(`api.torontobeekeeping.ca`) **same eTLD+1**, so:
+
+- Same-site cookies eliminate third-party cookie blocking concerns
+- Same-team Access SSO over same eTLD+1 sets cookies on both subdomains
+  more reliably
+- The members area should "just work" without merging Access apps or
+  pre-warming sessions
+
+### Where we left off
+
+- ✅ All code changes for the API migration are deployed (worker + Pages)
+- ✅ Both Access apps + their email/service-token policies are live
+- ✅ `sync-access-policy.yml` rewritten and verified working
+- ✅ `.env` populated with all needed Cloudflare credentials
+- ❌ The bulk redirect for `tbchivecheck.ca/*` was NOT created yet —
+  the CF API token lacks the `Zone → Config Rules: Edit` permission
+  needed to create redirect rules via API
+- ❌ `workers_dev = false` lockdown deferred until the redirect is in
+  place and the members area is verified working
+
+### To resume next session
+
+1. **Add `Zone → Config Rules: Edit` (and/or `Zone → Dynamic Redirect:
+   Edit`) to the existing CF API token at
+   https://dash.cloudflare.com/profile/api-tokens** — currently it only
+   has `Zone → DNS: Edit`, `Zone → Workers Routes: Edit`, `Zone: Read`.
+2. Create a Cloudflare Redirect Rule on the `tbchivecheck.ca` zone
+   (id=`6483c778b21c665836110a7c9c173aec`):
+   - Match: `http.host eq "tbchivecheck.ca"` (any path)
+   - Action: 301 to `https://torontobeekeeping.ca/members/hive-check`
+   - There is already a partial redirect rule (root path only) — extend
+     or replace it.
+3. Open `https://torontobeekeeping.ca/members/hive-data` in a logged-in
+   browser. If the data loads, the architecture works as designed.
+4. If it still fails: the fallback fix is to merge the two Access apps
+   into one — add `api.torontobeekeeping.ca` to the existing site Access
+   app's destinations, delete the standalone API app, update
+   `sync-access-policy.yml` to only update one policy.
+5. Once verified working, set `workers_dev = false` in
+   `worker/wrangler.toml` and deploy. This kills the public
+   `*.workers.dev` URL — the Worker is then only reachable via
+   `api.torontobeekeeping.ca` (Access-protected).
+6. Optionally remove `tbchivecheck.ca/members` and
+   `tbc-website-btd.pages.dev/members` from the site Access app's
+   `self_hosted_domains` since neither is a real site host anymore.
+
 ## Project Overview
 
 Website for the **Toronto Beekeepers Collective (TBC)**, a non-profit urban beekeeping club in Toronto. Replaces a WordPress site at [torontobeekeeping.ca](https://torontobeekeeping.ca).
