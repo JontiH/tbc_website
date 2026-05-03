@@ -5,13 +5,23 @@ compatibility_date = "2024-01-01"
 # Worker is deployed separately from the Astro site.
 # Run: cd worker && npx wrangler deploy
 
+# Worker is exposed on a custom domain protected by Cloudflare Access.
+# TODO: once api.torontobeekeeping.ca is verified working with Access in front
+# of it AND the frontend has been migrated, set workers_dev = false to disable
+# the public *.workers.dev URL. Until then it stays as the safety fallback.
+workers_dev = true
+
+[[routes]]
+pattern       = "api.torontobeekeeping.ca"
+custom_domain = true
+
 # Non-secret config — sheet IDs and ranges live here in version control
 [vars]
-CACHE_VER           = "4"
+CACHE_VER           = "5"
 HIVE_SHEET_ID       = "1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA"
 HIVE_SHEET_RANGE    = "Form responses 1!A:J"
 MEMBERS_SHEET_ID    = "1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ"
-MEMBERS_SHEET_RANGE = "TBC Memberships 2024!A:C"
+MEMBERS_SHEET_RANGE = "TBC Memberships!A:C"
 HIVE_FORM_ID        = "1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac"
 
 # Secrets are set via wrangler secret put (never committed):

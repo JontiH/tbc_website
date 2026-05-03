@@ -12,12 +12,46 @@
 const CACHE_TTL = 3600;
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
+// Worker is fronted by Cloudflare Access. For browsers, Access uses a cookie
+// (CF_Authorization) to authenticate cross-origin requests, so fetch() calls
+// from the site must use credentials: "include" — which in turn requires:
+//   - Access-Control-Allow-Origin: <specific origin>   (no "*")
+//   - Access-Control-Allow-Credentials: true
+//   - Vary: Origin                                      (so caches don't mix)
+//
+// Origins are allowlisted explicitly to prevent CSRF. Localhost variants are
+// included for local Astro/wrangler dev.
+const ALLOWED_ORIGINS = new Set([
+  "https://tbchivecheck.ca",
+  "https://torontobeekeeping.ca",
+  "https://api.torontobeekeeping.ca",
+  "https://tbc-website-btd.pages.dev",  // Cloudflare Pages production URL
+  "http://localhost:4321",               // Astro dev server
+  "http://localhost:8787",               // Wrangler dev server
+]);
+
+// Pages preview deploys come on <hash>.tbc-website-btd.pages.dev
+const PAGES_PREVIEW_RE = /^https:\/\/[a-z0-9-]+\.tbc-website-btd\.pages\.dev$/;
+
+function resolveOrigin(origin) {
+  if (!origin) return null;
+  if (ALLOWED_ORIGINS.has(origin)) return origin;
+  if (PAGES_PREVIEW_RE.test(origin)) return origin;
+  return null;
+}
+
 function corsHeaders(origin) {
-  return {
-    "Access-Control-Allow-Origin":  origin ?? "*",
+  const allowed = resolveOrigin(origin);
+  const headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, CF-Access-Client-Id, CF-Access-Client-Secret",
+    "Vary": "Origin",
   };
+  if (allowed) {
+    headers["Access-Control-Allow-Origin"]      = allowed;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  }
+  return headers;
 }
 
 function jsonResponse(data, status = 200, origin) {
@@ -213,7 +247,7 @@ async function appendHiveRow(sheetId, row, token) {
 export default {
   async fetch(request, env, ctx) {
     const url    = new URL(request.url);
-    const origin = request.headers.get("Origin") ?? "*";
+    const origin = request.headers.get("Origin");
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
@@ -263,7 +297,9 @@ export default {
       return errorResponse("Method not allowed", 405, origin);
     }
 
-    // Build cache key — unique per endpoint + relevant ID
+    // Build cache key — unique per endpoint + relevant ID. Origin is NOT in the
+    // key; instead the cached body has CORS headers stripped and we re-add the
+    // correct origin-specific headers on every serve.
     const cacheId = path === "/hive-form" ? `form-${env.HIVE_FORM_ID ?? "form"}`
                   : path === "/hive-data"  ? (env.HIVE_SHEET_ID ?? "hive")
                   : (env.MEMBERS_SHEET_ID ?? "members");
@@ -272,7 +308,14 @@ export default {
     const cacheKey = new Request(cacheUrl.toString(), request);
     const cache    = caches.default;
     const cached   = await cache.match(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      // Replace any origin-specific CORS headers with ones for this request
+      headers.delete("Access-Control-Allow-Origin");
+      headers.delete("Access-Control-Allow-Credentials");
+      for (const [k, v] of Object.entries(corsHeaders(origin))) headers.set(k, v);
+      return new Response(cached.body, { status: cached.status, headers });
+    }
 
     try {
       let response;
@@ -297,7 +340,13 @@ export default {
         return errorResponse("Not found", 404, origin);
       }
 
-      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      // Store an origin-agnostic copy in the cache. We re-attach the correct
+      // origin-specific CORS headers on each serve (see cache hit path above).
+      const cacheCopy = new Response(response.clone().body, {
+        status: response.status,
+        headers: { "Content-Type": "application/json", "Cache-Control": `public, max-age=${CACHE_TTL}` },
+      });
+      ctx.waitUntil(cache.put(cacheKey, cacheCopy));
       return response;
 
     } catch (err) {
