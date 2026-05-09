@@ -3,105 +3,6 @@
 Toronto Beekeepers Collective — Astro static site + Cloudflare Worker API.
 Read this before making changes.
 
-## ⚠ Work In Progress (last touched 2026-05-02)
-
-The members area is currently **broken in the browser** following an
-incomplete migration of the Worker behind Cloudflare Access. The Worker
-itself, the API, the sync workflow, and the service-token bypass all work
-correctly — but a member visiting `/members/hive-data` (etc.) sees
-`Failed to load hive data: NetworkError when attempting to fetch resource`
-because the browser's `fetch()` to `api.torontobeekeeping.ca` gets
-redirected to the Access login page (cross-origin → CORS-blocked).
-
-### How we got here
-
-Previously the Worker was reachable at `tbc-sheets-worker.jbhmario.workers.dev`
-with **no auth** — anyone on the internet could `curl /members` and get
-every member's name, email, and phone number. To fix that:
-
-1. Added a custom domain `api.torontobeekeeping.ca` to the Worker
-2. Created a NEW Cloudflare Access app (`TBC API Worker`,
-   id=`c1dc162a-804d-4c6f-a1ff-69413807fbd0`) covering that hostname
-3. Attached an email-allow policy + `opencode-dev` service-token policy
-4. Wired the frontend to fetch from `api.torontobeekeeping.ca` with
-   `credentials: "include"`
-5. Updated `sync-access-policy.yml` to use the service token and update
-   BOTH Access apps' email policies (site + API)
-6. Updated `worker/index.js` CORS to echo a specific origin and allow
-   credentials (required when `credentials: "include"` is in play)
-
-The `*.workers.dev` URL is still alive (`workers_dev = true` in
-`wrangler.toml`) as a safety fallback **but the deployed Pages bundle no
-longer points at it** — production members hit the broken
-`api.torontobeekeeping.ca` flow.
-
-### Why it's broken
-
-Cloudflare Access issues per-app cookies. When a member is logged into the
-**site app** (`tbchivecheck.ca/members` / `torontobeekeeping.ca/members`),
-they have a `CF_AppSession` cookie scoped to that hostname only. They do
-NOT yet have one for `api.torontobeekeeping.ca` (the **API Worker app**).
-On first hit, Access redirects to `torontobeekeeping.cloudflareaccess.com`
-to mint a new app cookie — but the redirect target is a different origin,
-and `fetch()` cannot follow cross-origin redirects on credentialed CORS
-requests. The browser blocks it as a CORS violation.
-
-The cross-app SSO works for top-level navigations (Access redirects, sets
-the new cookie, redirects back) but not for `fetch()`.
-
-### The intended fix (NOT YET DONE)
-
-Drop `tbchivecheck.ca` as an active site host. It will become a vanity
-redirect: **`tbchivecheck.ca/*` → `https://torontobeekeeping.ca/members/hive-check`**
-(any path, 301). The site only ever runs on `torontobeekeeping.ca`.
-
-This makes the site (`torontobeekeeping.ca`) and the API
-(`api.torontobeekeeping.ca`) **same eTLD+1**, so:
-
-- Same-site cookies eliminate third-party cookie blocking concerns
-- Same-team Access SSO over same eTLD+1 sets cookies on both subdomains
-  more reliably
-- The members area should "just work" without merging Access apps or
-  pre-warming sessions
-
-### Where we left off
-
-- ✅ All code changes for the API migration are deployed (worker + Pages)
-- ✅ Both Access apps + their email/service-token policies are live
-- ✅ `sync-access-policy.yml` rewritten and verified working
-- ✅ `.env` populated with all needed Cloudflare credentials
-- ❌ The bulk redirect for `tbchivecheck.ca/*` was NOT created yet —
-  the CF API token lacks the `Zone → Config Rules: Edit` permission
-  needed to create redirect rules via API
-- ❌ `workers_dev = false` lockdown deferred until the redirect is in
-  place and the members area is verified working
-
-### To resume next session
-
-1. **Add `Zone → Config Rules: Edit` (and/or `Zone → Dynamic Redirect:
-   Edit`) to the existing CF API token at
-   https://dash.cloudflare.com/profile/api-tokens** — currently it only
-   has `Zone → DNS: Edit`, `Zone → Workers Routes: Edit`, `Zone: Read`.
-2. Create a Cloudflare Redirect Rule on the `tbchivecheck.ca` zone
-   (id=`6483c778b21c665836110a7c9c173aec`):
-   - Match: `http.host eq "tbchivecheck.ca"` (any path)
-   - Action: 301 to `https://torontobeekeeping.ca/members/hive-check`
-   - There is already a partial redirect rule (root path only) — extend
-     or replace it.
-3. Open `https://torontobeekeeping.ca/members/hive-data` in a logged-in
-   browser. If the data loads, the architecture works as designed.
-4. If it still fails: the fallback fix is to merge the two Access apps
-   into one — add `api.torontobeekeeping.ca` to the existing site Access
-   app's destinations, delete the standalone API app, update
-   `sync-access-policy.yml` to only update one policy.
-5. Once verified working, set `workers_dev = false` in
-   `worker/wrangler.toml` and deploy. This kills the public
-   `*.workers.dev` URL — the Worker is then only reachable via
-   `api.torontobeekeeping.ca` (Access-protected).
-6. Optionally remove `tbchivecheck.ca/members` and
-   `tbc-website-btd.pages.dev/members` from the site Access app's
-   `self_hosted_domains` since neither is a real site host anymore.
-
 ## Project Overview
 
 Website for the **Toronto Beekeepers Collective (TBC)**, a non-profit urban beekeeping club in Toronto. Replaces a WordPress site at [torontobeekeeping.ca](https://torontobeekeeping.ca).
@@ -260,12 +161,17 @@ Browser → Cloudflare Access → Cloudflare Worker → Google Sheets API v4  (r
 ```
 
 The Worker is fronted by Cloudflare Access on `api.torontobeekeeping.ca`.
-Browsers SSO through transparently via the `CF_Authorization` cookie set by
-Access on the team domain — `fetch()` calls from the site must include
-`credentials: "include"` to send the cookie cross-origin. Scripts and CI
-use the `opencode-dev` service token to bypass Access. The `*.workers.dev`
-URL is disabled (`workers_dev = false`) so the Access policy can't be
-sidestepped.
+Crucially, **the API host shares a single Access app with the site** —
+`api.torontobeekeeping.ca` is one of the `self_hosted_domains` on the
+"TBC Members Area" Access app, alongside the site's `/members` paths.
+With ≤5 domains in the same Access app, Cloudflare preemptively sets the
+per-app `CF_Authorization` cookie on every domain at login time, so a
+member visiting `/members/hive-data` already has a valid auth cookie for
+`api.torontobeekeeping.ca` and `fetch(..., { credentials: "include" })`
+succeeds without a cross-origin redirect dance. Scripts and CI use the
+`opencode-dev` service token (`non_identity` policy on the same app) to
+bypass Access. The `*.workers.dev` URL is disabled (`workers_dev = false`)
+so the Access policy can't be sidestepped.
 
 ### Worker endpoints
 
@@ -364,8 +270,7 @@ Non-secret config in `worker/wrangler.toml` under `[vars]`:
 | Cloudflare Zone ID (`tbchivecheck.ca`) | `6483c778b21c665836110a7c9c173aec` |
 | Cloudflare Zone ID (`torontobeekeeping.ca`) | `875a91dd2ee58d534459eafaa3b49336` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| CF Access App: Site (tbchivecheck.ca/members) | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066` |
-| CF Access App: API Worker (api.torontobeekeeping.ca) | id=`c1dc162a-804d-4c6f-a1ff-69413807fbd0`, email policy=`69f44e34-3fe5-4698-8f81-e5df91b3aff4`, service-token policy=`ee001274-703e-413c-8e12-a606f856d8be` |
+| CF Access App: TBC Members Area | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066`, service-token policy=`3978a8b4-b6ac-492c-9139-c8abf0ea4337` — covers `torontobeekeeping.ca/members`, `tbchivecheck.ca/members`, `tbc-website-btd.pages.dev/members`, **and** `api.torontobeekeeping.ca` |
 | CF Access Service Token (opencode-dev) | id=`0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14`, client_id=`2e5b134fc2029cdb755476ee143f6c9e.access`, expires 2027-05-03 |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
@@ -431,10 +336,10 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 **`deploy-worker.yml`** — Triggers on push to `main` (only `worker/**`) and `workflow_dispatch`. Sets Google secrets via `wrangler secret put` on each deploy.
 
 **`sync-access-policy.yml`** — Triggers nightly at 05:00 UTC (midnight Toronto EDT) and `workflow_dispatch`.
-- Fetches `/members` from the live Worker (using the `opencode-dev` service token to bypass Access on `api.torontobeekeeping.ca`), extracts all `Email` values, and updates the email allow policy on **both** Access apps (site + API Worker).
-- **Skips the PUT if the policy is already in sync** — diffs the current Access policy against the desired list per app and only PUTs if they differ.
+- Fetches `/members` from the live Worker (using the `opencode-dev` service token to bypass Access on `api.torontobeekeeping.ca`), extracts all `Email` values, and updates the email allow policy on the single "TBC Members Area" Access app (which covers both the site `/members` paths and the API Worker hostname).
+- **Skips the PUT if the policy is already in sync** — diffs the current Access policy against the desired list and only PUTs if they differ.
 - **Refuses to push an empty list** — guards against accidental wipeout if the Worker returns no rows.
-- **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy on each app so it survives the nightly sync. Do not merge it into the email policy.
+- **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy on the same app so it survives the nightly sync. Do not merge it into the email policy.
 
 ---
 

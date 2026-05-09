@@ -6,10 +6,13 @@ compatibility_date = "2024-01-01"
 # Run: cd worker && npx wrangler deploy
 
 # Worker is exposed on a custom domain protected by Cloudflare Access.
-# TODO: once api.torontobeekeeping.ca is verified working with Access in front
-# of it AND the frontend has been migrated, set workers_dev = false to disable
-# the public *.workers.dev URL. Until then it stays as the safety fallback.
-workers_dev = true
+# The *.workers.dev URL is disabled — the Worker is only reachable via
+# api.torontobeekeeping.ca, which is gated by the "TBC Members Area"
+# Access app. The Access app also covers the merged site /members paths,
+# so a logged-in member's CF_Authorization cookie is preemptively set on
+# api.torontobeekeeping.ca and fetch() with credentials:include works
+# without a redirect.
+workers_dev = false
 
 [[routes]]
 pattern       = "api.torontobeekeeping.ca"
