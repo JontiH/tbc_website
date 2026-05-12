@@ -175,6 +175,13 @@ docker compose --profile live up   # Astro pointed at the production API
 docker compose --profile full up   # Astro + real Worker (needs Google creds)
 ```
 
+To stop, pass the same profile flag (a bare `docker compose down`
+won't see profiled services):
+
+```bash
+docker compose --profile mock down
+```
+
 The `mock` profile is the everyday choice. It runs the Astro dev server
 on `http://localhost:4321` plus a small mock server at `:8788` that
 serves fake hive data, members, and form structure from `mocks/*.json`.

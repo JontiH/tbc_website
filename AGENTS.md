@@ -227,6 +227,14 @@ compose profiles, pick one:
 | `live` | Astro only, pointed at production API | Visual / layout work where you don't need API responses. |
 | `full` | Astro + real Worker via wrangler dev | When you need to test Worker changes against real Google Sheets. Requires Google service-account credentials. |
 
+To tear down a running profile, pass the same `--profile` flag to
+`down`. A bare `docker compose down` only sees unprofiled services
+(none in our setup) and looks like a no-op:
+
+```bash
+docker compose --profile mock down    # or live / full
+```
+
 ### Mock profile (recommended)
 
 ```bash
