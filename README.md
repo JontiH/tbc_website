@@ -44,13 +44,15 @@ cost is the domain registration.
 ```mermaid
 flowchart LR
     U["Member's browser"]
+    SC["tbchivecheck.ca<br/>shortcut domain"]
 
     subgraph CF["Cloudflare edge"]
         direction TB
         ACC["Cloudflare Access<br/>email OTP login"]
         PAGES["Cloudflare Pages<br/>static Astro site<br/>torontobeekeeping.ca/*"]
         WORK["Cloudflare Worker<br/>torontobeekeeping.ca/api/*"]
-        REDIR["Redirect rule<br/>tbchivecheck.ca/*<br/>→ /members/hive-check"]
+        CACHE[("Edge cache<br/>1h TTL")]
+        REDIR["Single Redirect rule"]
     end
 
     subgraph Google["Google"]
@@ -68,12 +70,14 @@ flowchart LR
     U -->|"public pages"| PAGES
     U -->|"members pages<br/>(after OTP)"| ACC
     ACC -->|"authorised"| PAGES
-    U -->|"/api/* fetch<br/>same-origin"| ACC
+    U -->|"/api/* fetch<br/>(same-origin)"| ACC
     ACC -->|"authorised"| WORK
-    WORK -->|"read / append"| SHEET
-    WORK -->|"read form structure"| FORM
-    U -.->|"old link"| REDIR
-    REDIR -.->|"301"| PAGES
+    WORK <-->|"cache hit:<br/>return instantly"| CACHE
+    WORK -.->|"cache miss:<br/>read / append"| SHEET
+    WORK -.->|"cache miss:<br/>read form structure"| FORM
+    U -->|"shortcut URL"| SC
+    SC -->|"301"| REDIR
+    REDIR -->|"→ /members/hive-check"| PAGES
 
     REPO --> CI
     CI -->|"deploy"| PAGES
@@ -84,8 +88,8 @@ flowchart LR
     classDef cf fill:#fff,stroke:#F5A623,color:#2B2B2B
     classDef ext fill:#E8F5E9,stroke:#2E7D32,color:#2B2B2B
     classDef gh fill:#f4f4f4,stroke:#555,color:#2B2B2B
-    class U user
-    class PAGES,WORK,ACC,REDIR cf
+    class U,SC user
+    class PAGES,WORK,ACC,REDIR,CACHE cf
     class SHEET,FORM ext
     class REPO,CI gh
 ```
