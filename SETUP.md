@@ -61,13 +61,12 @@ npx wrangler login      # authenticate with Cloudflare
 npx wrangler deploy     # deploy the worker
 ```
 
-Note the Worker URL — it will be something like:
-`https://tbc-sheets-worker.YOUR_SUBDOMAIN.workers.dev`
-
-For TBC, the Worker is exposed on a custom domain protected by Cloudflare
-Access: `https://api.torontobeekeeping.ca`. Once the migration is verified,
-the `*.workers.dev` URL is disabled (`workers_dev = false` in `wrangler.toml`)
-so the Access policy cannot be bypassed.
+For TBC, the Worker is mounted on the site's own zone at
+`https://torontobeekeeping.ca/api/*` (same origin as the Astro site, behind
+the same Cloudflare Access app). This makes browser fetches first-party,
+sidestepping iOS Safari cross-site cookie blocking. The `*.workers.dev`
+URL is disabled (`workers_dev = false` in `wrangler.toml`) so the Access
+policy cannot be bypassed.
 
 ### Set Worker Secrets
 
@@ -93,14 +92,13 @@ npx wrangler secret put MEMBERS_SHEET_RANGE
 # paste: Sheet1!A:Z  (adjust tab name and column range to match your sheet)
 ```
 
-Test the Worker (via the workers.dev URL before locking it down, OR via
-the custom domain with a service token):
+Test the Worker with a service token (see AGENTS.md for IDs):
 ```
-https://api.torontobeekeeping.ca/hive-data
-https://api.torontobeekeeping.ca/members
+https://torontobeekeeping.ca/api/hive-data
+https://torontobeekeeping.ca/api/members
 ```
 Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers to bypass
-Access. See AGENTS.md for the service token IDs.
+Access.
 
 ---
 
@@ -115,8 +113,9 @@ Access. See AGENTS.md for the service token IDs.
    - **Framework preset**: Astro
    - **Build command**: `npm run build`
    - **Build output directory**: `dist`
-5. Add environment variable:
-   - `HIVE_WORKER_URL` = `https://api.torontobeekeeping.ca`
+5. No build-time environment variables required (the Astro pages call the
+   Worker at the same origin via `/api/*` — `HIVE_WORKER_URL` only matters
+   for local dev pointing at a remote API)
 6. Click Deploy
 
 ### Subsequent deploys

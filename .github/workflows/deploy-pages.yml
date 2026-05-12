@@ -27,8 +27,9 @@ jobs:
 
       - name: Build site
         run: npm run build
-        env:
-          HIVE_WORKER_URL: https://api.torontobeekeeping.ca
+        # HIVE_WORKER_URL is intentionally unset: the Worker now lives at
+        # torontobeekeeping.ca/api/* (same origin), so the Astro pages use
+        # relative /api/... paths in production.
 
       - name: Deploy to Cloudflare Pages
         run: npx wrangler pages deploy dist --project-name=tbc-website --commit-dirty=true

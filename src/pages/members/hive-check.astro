@@ -5,7 +5,9 @@ import MembersNav from "../../components/MembersNav.astro";
 import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-check";
-const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
+// Production: Worker is mounted at torontobeekeeping.ca/api/* (same origin).
+// Empty base + "/api/..." path = same-origin fetch. See hive-data.astro.
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
 ---
 
 <Base
@@ -91,7 +93,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeeke
   // ── Fetch form structure, then identity separately ──────────────────
   async function init() {
     try {
-      const formRes = await fetch(`${WORKER_URL}/hive-form`, { credentials: "include" });
+      const formRes = await fetch(`${WORKER_URL}/api/hive-form`, { credentials: "include" });
       if (!formRes.ok) throw new Error(`HTTP ${formRes.status}`);
       formStructure = await formRes.json();
       loadingEl.style.display = "none";
@@ -424,7 +426,7 @@ const WORKER_URL  = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeeke
     submitBtn.textContent = "Submitting…";
 
     try {
-      const res = await fetch(`${WORKER_URL}/hive-form-submit`, {
+      const res = await fetch(`${WORKER_URL}/api/hive-form-submit`, {
         method:      "POST",
         credentials: "include",
         headers:     { "Content-Type": "application/json" },

@@ -6,7 +6,9 @@ import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/members-list";
 
-const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
+// Production: Worker is mounted at torontobeekeeping.ca/api/* (same origin).
+// Empty base + "/api/..." path = same-origin fetch. See hive-data.astro.
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
 ---
 
 <Base
@@ -92,7 +94,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekee
 
   async function fetchMembers() {
     try {
-      const res = await fetch(`${WORKER_URL}/members`, { credentials: "include" });
+      const res = await fetch(`${WORKER_URL}/api/members`, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 

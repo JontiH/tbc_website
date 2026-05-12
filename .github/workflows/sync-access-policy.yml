@@ -3,9 +3,9 @@ name: Sync Cloudflare Access Policy
 # Runs nightly + can be triggered manually from the Actions tab.
 # Pulls the member list from the Access-protected Worker (using the
 # opencode-dev service token to bypass Access) and updates the email allow
-# policy on the single TBC Members Area Access app, which now covers both
-# the site (torontobeekeeping.ca/members et al.) and the API Worker
-# (api.torontobeekeeping.ca).
+# policy on the single "TBC Members Area" Access app. The Worker is
+# reached at torontobeekeeping.ca/api/members — same origin as the site,
+# protected by the same Access app.
 # Skips the PUT if the current emails already match.
 
 on:
@@ -23,7 +23,7 @@ jobs:
       # Single merged Access app covering site + API Worker
       APP_ID:          "40f844bc-ff6b-4669-9ec7-22b4a52cf825"
       POLICY_ID:       "d4a7448f-d652-4b66-b8da-a687077ab066"
-      WORKER_URL:      "https://api.torontobeekeeping.ca"
+      WORKER_URL:      "https://torontobeekeeping.ca/api"
       CF_ACCESS_CLIENT_ID:     ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
 

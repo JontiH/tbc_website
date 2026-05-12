@@ -5,18 +5,17 @@ compatibility_date = "2024-01-01"
 # Worker is deployed separately from the Astro site.
 # Run: cd worker && npx wrangler deploy
 
-# Worker is exposed on a custom domain protected by Cloudflare Access.
-# The *.workers.dev URL is disabled — the Worker is only reachable via
-# api.torontobeekeeping.ca, which is gated by the "TBC Members Area"
-# Access app. The Access app also covers the merged site /members paths,
-# so a logged-in member's CF_Authorization cookie is preemptively set on
-# api.torontobeekeeping.ca and fetch() with credentials:include works
-# without a redirect.
+# Worker is exposed only at torontobeekeeping.ca/api/*, behind the
+# "TBC Members Area" Cloudflare Access app. This is the same origin as
+# the rest of the site, so the browser treats /api/* fetches as
+# first-party and ships the CF_Authorization cookie without ITP/Safari
+# cross-site cookie blocking interfering. The *.workers.dev URL is
+# disabled so the Worker cannot be reached around Access.
 workers_dev = false
 
 [[routes]]
-pattern       = "api.torontobeekeeping.ca"
-custom_domain = true
+pattern = "torontobeekeeping.ca/api/*"
+zone_id = "875a91dd2ee58d534459eafaa3b49336"
 
 # Non-secret config — sheet IDs and ranges live here in version control
 [vars]

@@ -12,19 +12,14 @@
 const CACHE_TTL = 3600;
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
-// Worker is fronted by Cloudflare Access. For browsers, Access uses a cookie
-// (CF_Authorization) to authenticate cross-origin requests, so fetch() calls
-// from the site must use credentials: "include" — which in turn requires:
-//   - Access-Control-Allow-Origin: <specific origin>   (no "*")
-//   - Access-Control-Allow-Credentials: true
-//   - Vary: Origin                                      (so caches don't mix)
-//
-// Origins are allowlisted explicitly to prevent CSRF. Localhost variants are
-// included for local Astro/wrangler dev.
+// Worker now lives at torontobeekeeping.ca/api/* — same origin as the site —
+// so production browser requests are same-origin and CORS doesn't apply.
+// We still keep an allowlist for:
+//   - local dev (Astro on :4321, wrangler on :8787)
+//   - Pages preview deploys
+//   - Anything that hits the Worker cross-origin (e.g. a future migration)
 const ALLOWED_ORIGINS = new Set([
-  "https://tbchivecheck.ca",
   "https://torontobeekeeping.ca",
-  "https://api.torontobeekeeping.ca",
   "https://tbc-website-btd.pages.dev",  // Cloudflare Pages production URL
   "http://localhost:4321",               // Astro dev server
   "http://localhost:8787",               // Wrangler dev server
@@ -253,12 +248,30 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
-    const path = url.pathname.replace(/\/$/, "");
+    // Strip the /api prefix so the existing handlers below match unchanged.
+    // The Worker is mounted on torontobeekeeping.ca/api/* in production, so
+    // every real request arrives with /api in front. Requests without the
+    // prefix (e.g. local wrangler dev hitting /hive-data directly) still work.
+    const path = url.pathname.replace(/^\/api/, "").replace(/\/$/, "");
 
     // POST only allowed for the submit endpoint
     if (request.method === "POST") {
       if (path !== "/hive-form-submit") {
         return errorResponse("Method not allowed", 405, origin);
+      }
+
+      // CSRF defence: reject browser POSTs initiated from another site.
+      // Sec-Fetch-Site is a Fetch Metadata header set by the browser; it
+      // cannot be forged from JS. Values:
+      //   same-origin / same-site — legitimate page-initiated requests
+      //   none                    — user-initiated (typed URL, bookmark)
+      //   cross-site              — from a different registrable domain
+      //   (absent / null)         — non-browser clients (curl, GitHub Actions)
+      // We allow all values except "cross-site". The opencode-dev service
+      // token path (used by sync-access-policy.yml) does not send this header,
+      // so it passes through and is gated solely by CF Access as before.
+      if (request.headers.get("Sec-Fetch-Site") === "cross-site") {
+        return errorResponse("Cross-site POST not allowed", 403, origin);
       }
 
       let body;

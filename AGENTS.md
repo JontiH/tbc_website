@@ -153,35 +153,43 @@ Defined in `src/styles/global.css`. All values use CSS custom properties.
 ### Architecture
 
 ```
-Browser → Cloudflare Access → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
-          (api.torontobeekeeping.ca)            → Google Forms API v1    (read form structure)
-                                                → Google Sheets API v4   (append hive check submission)
-                                       ↑
-                                1-hour server-side cache (Cloudflare Cache API)
+Browser → torontobeekeeping.ca/api/* → Cloudflare Access → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
+          (same origin as the site)                                          → Google Forms API v1    (read form structure)
+                                                                             → Google Sheets API v4   (append hive check submission)
+                                                                    ↑
+                                                          1-hour server-side cache (Cloudflare Cache API)
 ```
 
-The Worker is fronted by Cloudflare Access on `api.torontobeekeeping.ca`.
-Crucially, **the API host shares a single Access app with the site** —
-`api.torontobeekeeping.ca` is one of the `self_hosted_domains` on the
-"TBC Members Area" Access app, alongside the site's `/members` paths.
-With ≤5 domains in the same Access app, Cloudflare preemptively sets the
-per-app `CF_Authorization` cookie on every domain at login time, so a
-member visiting `/members/hive-data` already has a valid auth cookie for
-`api.torontobeekeeping.ca` and `fetch(..., { credentials: "include" })`
-succeeds without a cross-origin redirect dance. Scripts and CI use the
+The Worker is mounted on `torontobeekeeping.ca/api/*` via a zone route, so
+browser fetches are **same-origin** with the rest of the site. This is the
+key design choice and the reason for it is the iOS Safari third-party
+cookie problem: when the Worker lived on `api.torontobeekeeping.ca`,
+iOS WebKit's cookie isolation often refused to honour the `CF_Authorization`
+cookie on the API subdomain, causing browser `fetch(..., { credentials:
+"include" })` calls to silently fail with "Failed to fetch" even though
+desktop browsers worked. Mounting the Worker on the same registrable
+hostname makes the API cookie unambiguously first-party.
+
+Access protection is unchanged: the same "TBC Members Area" Access app
+gates both `torontobeekeeping.ca/members` (the static pages) and
+`torontobeekeeping.ca/api/*` (the Worker). Scripts and CI use the
 `opencode-dev` service token (`non_identity` policy on the same app) to
 bypass Access. The `*.workers.dev` URL is disabled (`workers_dev = false`)
 so the Access policy can't be sidestepped.
 
 ### Worker endpoints
 
+All paths are mounted under `/api/` in production
+(e.g. `https://torontobeekeeping.ca/api/hive-data`). The Worker strips the
+`/api` prefix in `fetch()` so the handlers below match unchanged.
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/hive-data` | Fetches hive visit records. Strips `Email address`; maps verbose column names to short keys. Returns `{ rows }`. Cached 1 hour. |
-| `GET` | `/members` | Fetches members list. Returns `{ headers, rows }` as-is. Cached 1 hour. |
-| `GET` | `/hive-form` | Fetches hive check form structure from Google Forms API. Skips `file_upload` questions. Returns `{ formId, title, description, submitUrl, responderUri, items }`. Cached 1 hour. |
-| `POST` | `/hive-form-submit` | Accepts JSON body, appends a row (A:Timestamp, B:Email, C:Date, D:Location, E:Colony, F:Status, G:Treatment, H:Feed, I:Mite count, J:Comments) to hive sheet. Not cached. |
-| `OPTIONS` | `*` | CORS preflight — returns 204 with CORS headers. |
+| `GET` | `/api/hive-data` | Fetches hive visit records. Strips `Email address`; maps verbose column names to short keys. Returns `{ rows }`. Cached 1 hour. |
+| `GET` | `/api/members` | Fetches members list. Returns `{ headers, rows }` as-is. Cached 1 hour. |
+| `GET` | `/api/hive-form` | Fetches hive check form structure from Google Forms API. Skips `file_upload` questions. Returns `{ formId, title, description, submitUrl, responderUri, items }`. Cached 1 hour. |
+| `POST` | `/api/hive-form-submit` | Accepts JSON body, appends a row (A:Timestamp, B:Email, C:Date, D:Location, E:Colony, F:Status, G:Treatment, H:Feed, I:Mite count, J:Comments) to hive sheet. Rejects cross-site `Sec-Fetch-Site` with 403 (CSRF defence). Not cached. |
+| `OPTIONS` | `*` | CORS preflight — returns 204 with CORS headers. Same-origin browser fetches don't trigger this. |
 
 ### Hive data column mapping
 
@@ -240,9 +248,10 @@ The Worker reads `TBC Memberships!A:C` (sheet tab named `TBC Memberships`).
 
 | Variable | Where used | Description |
 |---|---|---|
-| `HIVE_WORKER_URL` | Astro build / `.env` | Base URL of the deployed Cloudflare Worker |
+| `HIVE_WORKER_URL` | local dev only | Optional base URL the Astro pages prepend to `/api/...`. Empty in production (same-origin). Set for local dev pointing at a remote Worker. |
 | `CF_ACCESS_CLIENT_ID` | `.env` / curl scripts | Service token ID for bypassing CF Access in scripts |
 | `CF_ACCESS_CLIENT_SECRET` | `.env` / curl scripts | Service token secret |
+| `CLOUDFLARE_API_TOKEN` | `.env` / maintenance scripts | Optional. Cloudflare API token for ad-hoc API/config changes. |
 
 Worker secrets (set via `wrangler secret put`, never in files):
 
@@ -270,7 +279,7 @@ Non-secret config in `worker/wrangler.toml` under `[vars]`:
 | Cloudflare Zone ID (`tbchivecheck.ca`) | `6483c778b21c665836110a7c9c173aec` |
 | Cloudflare Zone ID (`torontobeekeeping.ca`) | `875a91dd2ee58d534459eafaa3b49336` |
 | Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| CF Access App: TBC Members Area | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066`, service-token policy=`3978a8b4-b6ac-492c-9139-c8abf0ea4337` — covers `torontobeekeeping.ca/members`, `tbchivecheck.ca/members`, `tbc-website-btd.pages.dev/members`, **and** `api.torontobeekeeping.ca` |
+| CF Access App: TBC Members Area | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066`, service-token policy=`3978a8b4-b6ac-492c-9139-c8abf0ea4337` — covers `torontobeekeeping.ca/members` and `torontobeekeeping.ca/api/*` |
 | CF Access Service Token (opencode-dev) | id=`0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14`, client_id=`2e5b134fc2029cdb755476ee143f6c9e.access`, expires 2027-05-03 |
 
 Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
@@ -286,6 +295,10 @@ cp .env.example .env    # fill in HIVE_WORKER_URL
 npm run dev             # http://localhost:4321
 npm run build           # production build → dist/
 ```
+
+In production the Astro pages call `/api/...` (same origin). For local dev,
+either run wrangler dev for the Worker locally (set `HIVE_WORKER_URL=http://localhost:8787`)
+or point at the live API with `HIVE_WORKER_URL=https://torontobeekeeping.ca`.
 
 Node.js on the host may be v18 (too old for wrangler). Use Docker for all wrangler operations.
 
@@ -314,18 +327,20 @@ Pushing to `main` auto-deploys via `deploy-pages.yml`.
 
 - Pages project: `tbc-website`
 - Production URL: `https://tbc-website-btd.pages.dev`
-- Custom domain: `https://tbchivecheck.ca`
+- Custom domain: `https://torontobeekeeping.ca`
 - Build command: `npm run build`
-- Build env: `HIVE_WORKER_URL=https://api.torontobeekeeping.ca`
+- Build env: none required (Astro uses relative `/api/...` paths)
+
+`tbchivecheck.ca` is **not** a Pages custom domain — it's a separate Cloudflare zone with a Single Redirect rule that 301s every request to `https://torontobeekeeping.ca/members/hive-check`. See [DNS](#dns) below.
 
 ### Cloudflare Worker (API)
 
 Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 
 - Worker name: `tbc-sheets-worker`
-- Public URL: `https://api.torontobeekeeping.ca` (Cloudflare Access protected)
+- Route: `torontobeekeeping.ca/api/*` (zone route, same-origin with the site)
+- Behind the "TBC Members Area" Cloudflare Access app
 - `*.workers.dev` is disabled (`workers_dev = false` in `wrangler.toml`)
-- Custom domain bound via `[[routes]]` block with `custom_domain = true`
 
 ---
 
@@ -336,7 +351,7 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 **`deploy-worker.yml`** — Triggers on push to `main` (only `worker/**`) and `workflow_dispatch`. Sets Google secrets via `wrangler secret put` on each deploy.
 
 **`sync-access-policy.yml`** — Triggers nightly at 05:00 UTC (midnight Toronto EDT) and `workflow_dispatch`.
-- Fetches `/members` from the live Worker (using the `opencode-dev` service token to bypass Access on `api.torontobeekeeping.ca`), extracts all `Email` values, and updates the email allow policy on the single "TBC Members Area" Access app (which covers both the site `/members` paths and the API Worker hostname).
+- Fetches `https://torontobeekeeping.ca/api/members` from the live Worker (using the `opencode-dev` service token to bypass Access), extracts all `Email` values, and updates the email allow policy on the single "TBC Members Area" Access app.
 - **Skips the PUT if the policy is already in sync** — diffs the current Access policy against the desired list and only PUTs if they differ.
 - **Refuses to push an empty list** — guards against accidental wipeout if the Worker returns no rows.
 - **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy on the same app so it survives the nightly sync. Do not merge it into the email policy.
@@ -357,8 +372,27 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 ## DNS
 
 - Domain `tbchivecheck.ca` registered at **Hover**, nameservers at **Cloudflare** (`rayne.ns.cloudflare.com`, `woz.ns.cloudflare.com`)
-- DNS: `CNAME @ → tbc-website-btd.pages.dev` (proxied) — Cloudflare flattens CNAME at apex
+- DNS: `CNAME @ → tbc-website-btd.pages.dev` (proxied) — Cloudflare flattens CNAME at apex. The DNS record is only there so Cloudflare will accept and TLS-terminate traffic; the request never reaches Pages because a Single Redirect fires first (see below).
 - MX record kept for Hover email hosting
+
+### `tbchivecheck.ca` → `torontobeekeeping.ca/members/hive-check` redirect
+
+A **Cloudflare Single Redirect** on the `tbchivecheck.ca` zone 301s every request to `https://torontobeekeeping.ca/members/hive-check` (path and query string discarded).
+
+- Phase: `http_request_dynamic_redirect`
+- Zone ruleset id: `858a366e1fec401b98641209a0cf10e4`
+- Rule id: `936c6a9963474e8c9b2e0a815987e0ea`
+- Expression: `(http.host eq "tbchivecheck.ca")`
+- Target: static `https://torontobeekeeping.ca/members/hive-check`, status 301, `preserve_query_string: false`
+
+Manage via dashboard: **Cloudflare → tbchivecheck.ca → Rules → Redirect Rules**. Or via API:
+
+```bash
+curl -s "https://api.cloudflare.com/client/v4/zones/6483c778b21c665836110a7c9c173aec/rulesets/858a366e1fec401b98641209a0cf10e4" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | python3 -m json.tool
+```
+
+This rule funnels all `tbchivecheck.ca` traffic onto `torontobeekeeping.ca`, where the Worker is also mounted (`/api/*`) — keeping every browser fetch first-party. Don't change the redirect target to a different registrable domain without re-evaluating this.
 
 ### Cloudflare API Token permissions
 
@@ -387,7 +421,7 @@ Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
 - **Astro external CSS + SVG filter IDs**: `filter: url('#id')` in an external CSS file may resolve the fragment against the CSS file's URL, not the document. Set SVG filter references via `element.style.filter` in JS — inline styles always resolve against `document.baseURI`.
 - **SVG filter visibility**: `display:none` on an SVG prevents its `<filter>` / `<defs>` from being usable. Use `position:absolute; width:0; height:0; overflow:hidden` instead.
 - **Uniform clip-path borders**: Two stacked `clip-path: polygon()` elements with different heights cannot produce a uniform border — diagonal slopes differ. Use an SVG `feMorphology operator="dilate"` filter on a *parent* element (filter must be on the parent, not the clipped element itself — CSS applies `filter` before `clip-path` on the same element).
-- **Accessing CF Access-protected pages from scripts**: Use the `opencode-dev` service token. Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. Credentials in `.env` as `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`. Example: `curl -Ls -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" https://tbchivecheck.ca/members/hive-check`
+- **Accessing CF Access-protected pages from scripts**: Use the `opencode-dev` service token. Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. Credentials in `.env` as `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`. Example: `curl -Ls -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" https://torontobeekeeping.ca/members/hive-check`
 
 ---
 

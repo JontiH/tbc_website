@@ -6,7 +6,11 @@ import Footer from "../../components/Footer.astro";
 
 const currentPath = "/members/hive-data";
 
-const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekeeping.ca";
+// Production: Worker is mounted at torontobeekeeping.ca/api/* (same origin)
+// so an empty base + "/api/..." path resolves to a same-origin fetch with no
+// CORS or third-party-cookie issues. HIVE_WORKER_URL only needs to be set
+// for local dev pointing at a remote API.
+const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
 ---
 
 <Base
@@ -319,9 +323,10 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "https://api.torontobeekee
   // ── Fetch ─────────────────────────────────────────────────────────────
   async function fetchData() {
     try {
-      // credentials: "include" sends the CF_Authorization cookie cross-origin
-      // so the Access-protected Worker authenticates the member's session.
-      const res = await fetch(`${WORKER_URL}/hive-data`, { credentials: "include" });
+      // Same-origin fetch in production (WORKER_URL = ""). credentials: "include"
+      // is a no-op for same-origin but harmless and future-proof for dev setups
+      // that point at a remote Access-protected Worker.
+      const res = await fetch(`${WORKER_URL}/api/hive-data`, { credentials: "include" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       allRows = (json.rows ?? []).map((r, i) => ({ ...r, _id: i }));
