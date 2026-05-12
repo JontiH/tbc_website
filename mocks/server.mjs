@@ -12,17 +12,49 @@
 // directly:  node mocks/server.mjs
 
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT ?? "8788", 10);
 
-// MOCK_IDENTITY_EMAIL: returned by /cdn-cgi/access/get-identity so the
-// hive-check form's "Submitting as <email>" banner has a value.
-// Falls back to a placeholder if unset.
-const MOCK_EMAIL = process.env.MOCK_IDENTITY_EMAIL || "dev@example.test";
+// Resolve the email returned by /cdn-cgi/access/get-identity. Lookup order:
+//   1. MOCK_IDENTITY_EMAIL env var (explicit override from compose / shell)
+//   2. user.email in the repo's .git/config  (mounted at /host/repo-gitconfig)
+//   3. user.email in ~/.gitconfig            (mounted at /host/global-gitconfig)
+//   4. dev@example.test                      (final fallback)
+function parseGitUserEmail(path) {
+  if (!path || !existsSync(path)) return null;
+  let inUserSection = false;
+  for (const raw of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    if (line.startsWith("[")) {
+      // Section heading like [user] or [remote "origin"]
+      inUserSection = /^\[\s*user\s*(\]|"\s*\])/.test(line);
+      continue;
+    }
+    if (inUserSection) {
+      const m = line.match(/^email\s*=\s*(.+?)\s*$/);
+      if (m) return m[1];
+    }
+  }
+  return null;
+}
+
+function resolveMockEmail() {
+  if (process.env.MOCK_IDENTITY_EMAIL) {
+    return { email: process.env.MOCK_IDENTITY_EMAIL, source: "MOCK_IDENTITY_EMAIL env" };
+  }
+  const repoEmail = parseGitUserEmail("/host/repo-gitconfig");
+  if (repoEmail) return { email: repoEmail, source: "repo .git/config" };
+  const globalEmail = parseGitUserEmail("/host/global-gitconfig");
+  if (globalEmail) return { email: globalEmail, source: "global ~/.gitconfig" };
+  return { email: "dev@example.test", source: "fallback default" };
+}
+
+const { email: MOCK_EMAIL, source: MOCK_EMAIL_SOURCE } = resolveMockEmail();
 
 // ── Seed data ────────────────────────────────────────────────────────────
 const hiveForm  = JSON.parse(readFileSync(join(HERE, "hive-form.json"), "utf8"));
@@ -139,6 +171,6 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`[mock] listening on http://0.0.0.0:${PORT}`);
-  console.log(`[mock] identity email: ${MOCK_EMAIL}`);
+  console.log(`[mock] identity email: ${MOCK_EMAIL}  (from ${MOCK_EMAIL_SOURCE})`);
   console.log(`[mock] seeded with ${hiveRows.length} hive rows, ${members.rows.length} members`);
 });

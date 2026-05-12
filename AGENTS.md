@@ -242,9 +242,19 @@ Two containers:
 
 Submissions append to in-memory state, so a hive check you submit
 through the form shows up on the Hive Data page immediately. No 1-hour
-cache, no auth. The identity-endpoint mock returns `dev@example.test`
-by default; override with `MOCK_IDENTITY_EMAIL=you@example.com docker
-compose --profile mock up`.
+cache, no auth.
+
+The identity-endpoint mock returns an email for the "Submitting as
+<email>" banner on the hive-check form. Lookup order:
+
+1. `MOCK_IDENTITY_EMAIL` env var, if set (`MOCK_IDENTITY_EMAIL=you@example.com docker compose --profile mock up`)
+2. `user.email` from the repo's `.git/config` (mounted read-only)
+3. `user.email` from `~/.gitconfig` (mounted read-only)
+4. `dev@example.test` as a final fallback
+
+So if you have `git config user.email` set anywhere on the host, the
+mock will pick it up automatically. The mock prints which source it
+used on startup.
 
 Edits to seed data: change the JSON files in `mocks/` and restart the
 mock container. Edits to mock logic: change `mocks/server.mjs` and

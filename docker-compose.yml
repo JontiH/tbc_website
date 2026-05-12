@@ -52,10 +52,19 @@ services:
     profiles: ["mock"]
     build: { context: ./mocks }
     ports: ["8788:8788"]
+    volumes:
+      # Read-only mounts so the mock can autodetect your git identity for the
+      # /cdn-cgi/access/get-identity endpoint. Tried in order:
+      #   1. MOCK_IDENTITY_EMAIL env var (explicit override, see below)
+      #   2. user.email in the repo's .git/config        (local git override)
+      #   3. user.email in ~/.gitconfig                  (global git identity)
+      #   4. dev@example.test                            (last-resort fallback)
+      - ./.git/config:/host/repo-gitconfig:ro
+      - ${HOME}/.gitconfig:/host/global-gitconfig:ro
     environment:
-      # Email returned by the fake /cdn-cgi/access/get-identity, shown in the
-      # hive-check form's "Submitting as <email>" banner.
-      - MOCK_IDENTITY_EMAIL=${MOCK_IDENTITY_EMAIL:-dev@example.test}
+      # Optional explicit override; takes priority over the git-config lookup.
+      # Useful for testing how the form behaves with a specific email.
+      - MOCK_IDENTITY_EMAIL=${MOCK_IDENTITY_EMAIL:-}
 
   # ── Mode 3: Full local stack via wrangler dev ─────────────────────────
   astro-full:
