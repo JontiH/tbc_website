@@ -20,7 +20,7 @@ join. A members-only section behind email login provides:
 
 ## Design choices
 
-The site is fully static. Pages are pre-built HTML; nothing renders at
+The site is fully static! Pages are pre-built HTML; nothing renders at
 request time. The only dynamic content is in the members area, which
 fetches live data from a small Cloudflare Worker after the page loads.
 
