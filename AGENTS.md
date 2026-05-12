@@ -1,437 +1,299 @@
-# TBC Website
+# AGENTS.md
 
-Toronto Beekeepers Collective — Astro static site + Cloudflare Worker API.
-Read this before making changes.
+Technical reference for the TBC website. Read this before changing the
+Worker, Cloudflare config, or anything to do with auth, data, or deploys.
 
-## Project Overview
+For the user-facing overview, see [README.md](README.md).
+For first-time setup, see [SETUP.md](SETUP.md).
 
-Website for the **Toronto Beekeepers Collective (TBC)**, a non-profit urban beekeeping club in Toronto. Replaces a WordPress site at [torontobeekeeping.ca](https://torontobeekeeping.ca).
-
-**Key goals:**
-- Clean, modern static site with a honeycomb/amber aesthetic matching the TBC logo
-- Low maintenance: content updates happen in Google Sheets, not in code
-- Members-only section protected by Cloudflare Access (email OTP)
-- Hosted on Cloudflare Pages (free tier)
-
----
-
-## Tech Stack
-
-| Layer | Technology | Why |
-|---|---|---|
-| Frontend | **Astro** (static output) | Fast static HTML, deploys perfectly to Cloudflare Pages |
-| Styling | Plain CSS (global.css) | No framework needed; custom design system |
-| Charts | **Chart.js** (CDN ESM import) | Client-side, no bundle bloat |
-| Data API | **Cloudflare Worker** | Proxies/caches Google Sheets & Forms APIs; keeps credentials server-side |
-| Auth | **Cloudflare Access** (OTP) | Free for ≤50 users; email OTP, no passwords to manage |
-| Hosting | **Cloudflare Pages** | Free tier, auto-deploy on push to `main` |
-
----
-
-## Repository Structure
+## Architecture
 
 ```
-tbc_website/
-├── .github/
-│   └── workflows/
-│       ├── deploy-pages.yml       # CI: build + deploy Astro to Cloudflare Pages
-│       ├── deploy-worker.yml      # CI: deploy Worker + set secrets
-│       └── sync-access-policy.yml # CI: nightly sync of member emails → CF Access
-├── src/
-│   ├── layouts/
-│   │   └── Base.astro             # HTML shell: head, OG meta, Inter font, slot layout
-│   ├── components/
-│   │   ├── Nav.astro              # Sticky top nav with mobile hamburger toggle
-│   │   ├── Footer.astro           # 3-column site footer (Bee Yards = 3 active locations)
-│   │   └── MembersNav.astro       # Dark sub-nav for all /members/* pages
-│   ├── styles/
-│   │   └── global.css             # Full design system — colours, typography, components
-│   └── pages/
-│       ├── index.astro            # Public landing page
-│       ├── about.astro            # About, history timeline (1985–2024), bee yards, FAQ
-│       ├── membership.astro       # Membership info, requirements, timeline, perks
-│       └── members/
-│           ├── index.astro        # Members area hub (3 section cards)
-│           ├── hive-data.astro    # Hive visit explorer: calendar, chart, filterable table
-│           ├── hive-check.astro   # Hive check submission form (fetches /hive-form Worker)
-│           └── members-list.astro # Member list table (fetches /members Worker)
-├── worker/
-│   ├── index.js                   # Cloudflare Worker source
-│   ├── wrangler.toml              # Worker deploy config + non-secret vars
-│   ├── Dockerfile                 # node:22-slim (Debian) + ca-certificates + wrangler
-│   └── entrypoint.sh              # Writes .dev.vars from env, starts wrangler dev
-├── public/
-│   ├── favicon.ico                # Multi-size ICO (16/32/48px) from original TBC logo
-│   ├── favicon-192.png            # 192×192 PNG for modern browsers
-│   ├── apple-touch-icon.png       # 180×180 PNG for iOS home screen
-│   └── logo.png                   # Full TBC logo (hexagon + Toronto skyline + wordmark)
-├── Dockerfile                     # Multi-stage: dev / build / preview (node:22-alpine)
-├── docker-compose.yml             # Astro dev + Worker containers
-├── astro.config.mjs
-├── package.json
-└── .env.example                   # Template — only HIVE_WORKER_URL
+Browser
+  │
+  ▼
+torontobeekeeping.ca               (Cloudflare zone)
+  │
+  ├── /                            Cloudflare Pages (static Astro)
+  ├── /about, /membership          Cloudflare Pages
+  ├── /members/*                   Cloudflare Pages, gated by CF Access
+  └── /api/*                       Cloudflare Worker, gated by CF Access
+                                     │
+                                     ├── Google Sheets API (read + append)
+                                     └── Google Forms API (read structure)
 ```
 
----
+The Worker lives on the same hostname as the site (`torontobeekeeping.ca/api/*`)
+so browser fetches are first-party. An earlier setup using `api.torontobeekeeping.ca`
+broke on iOS Safari, which dropped the cross-site `CF_Authorization` cookie and
+caused "Failed to fetch" errors. Don't move the API back to a subdomain.
 
-## Pages
+`tbchivecheck.ca` is a separate zone that 301-redirects every path to
+`torontobeekeeping.ca/members/hive-check`. See the DNS section below.
 
-| Route | File | Purpose |
-|---|---|---|
-| `/` | `pages/index.astro` | Hero, stats bar, "What is TBC" section, bee yards cards, Join CTA |
-| `/about` | `pages/about.astro` | Mission, history timeline (1985–2024), 3 active yards, FAQ accordion |
-| `/membership` | `pages/membership.astro` | Application process, timeline, commitment grid, perks, callout |
-| `/members` | `pages/members/index.astro` | Hub with 3 cards linking to Hive Data, Hive Check Form, Members List |
-| `/members/hive-data` | `pages/members/hive-data.astro` | Filters, visit calendar heatmap, mite count scatter chart, sortable table |
-| `/members/hive-check` | `pages/members/hive-check.astro` | Dynamic hive check submission form |
-| `/members/members-list` | `pages/members/members-list.astro` | Member list table with search and column filter |
+## Worker endpoints
 
-**Active yards (3):** Downsview Park, Black Creek Community Farm, Fairmont Royal York Hotel. The Ontario Science Centre closed 2023/2024 and appears only in the history timeline on `/about`.
+All paths are mounted under `/api/` in production. The Worker strips the
+`/api` prefix internally.
 
----
-
-## Components
-
-- **`Base.astro`** — HTML shell. Accepts `title`, `description`, `ogImage` props. Loads Inter from Google Fonts. Named slots: `nav`, default (main), `footer`. Constructs canonical URL from `Astro.site`. Favicon links: `favicon.ico` (all browsers), `favicon-192.png` (modern), `apple-touch-icon.png` (iOS).
-- **`Nav.astro`** — Sticky top nav. Logo image only (no text label), 4 links (Home, About, Membership, Members Area). Members Area link styled as `.nav-cta` (amber fill). Mobile hamburger toggle in vanilla JS. Accepts `currentPath` prop for active state.
-- **`Footer.astro`** — Dark charcoal footer. Columns: About/contact, Navigate, Members links, Bee Yards (3 active locations only). Copyright year and Gmail address in footer bottom bar.
-- **`MembersNav.astro`** — Dark sub-navigation bar rendered below `.page-header` on all `/members/*` pages. 3 links: Hive Data, Hive Check Form, Members List. Amber active underline indicator.
-
----
-
-## Design System
-
-Defined in `src/styles/global.css`. All values use CSS custom properties.
-
-### Colours
-
-| Variable | Value | Usage |
-|---|---|---|
-| `--amber` | `#F5A623` | Primary brand colour, CTAs, nav accent |
-| `--amber-dark` | `#D4881A` | Hover states, headings in amber contexts |
-| `--amber-light` | `#FDE9C0` | Backgrounds for highlight boxes, hex accents |
-| `--charcoal` | `#2B2B2B` | Primary text, dark backgrounds |
-| `--charcoal-mid` | `#555555` | Secondary/muted text |
-| `--cream` | `#FFF8EE` | Page background |
-| `--white` | `#FFFFFF` | |
-| `--border` | `#E8D9B8` | Card/input borders |
-| `--status-good` | `#2E7D32` | Green — strong hive |
-| `--status-good-bg` | `#E8F5E9` | Green background for status badges |
-| `--status-mid` | `#F57F17` | Amber/yellow — neutral hive |
-| `--status-mid-bg` | `#FFF9C4` | Amber background for status badges |
-| `--status-bad` | `#C62828` | Red — weak hive |
-| `--status-bad-bg` | `#FFEBEE` | Red background for status badges |
-| `--radius` | `8px` | Default border radius |
-| `--shadow` | `0 2px 8px rgba(43,43,43,0.10)` | Card shadow |
-| `--shadow-lg` | `0 4px 24px rgba(43,43,43,0.14)` | Elevated card shadow |
-| `--max-width` | `1100px` | Container max width |
-
-### Key CSS classes
-
-- `.container` — max-width wrapper (1100px), horizontal padding
-- `.section` / `.section-alt` — page sections with standard vertical padding; alt has white background
-- `.section-header` — heading + subtext block with 2.5rem bottom margin
-- `.card` / `.card-grid` — white card component and auto-fit grid (min 280px)
-- `.btn`, `.btn-primary`, `.btn-outline`, `.btn-outline-dark` — button variants
-- `.badge`, `.badge-good`, `.badge-mid`, `.badge-bad`, `.badge-unknown` — status badge pills
-- `.page-header` — dark charcoal header with hexagonal SVG background
-- `.hero` — full-width dark gradient hero with hexagonal background
-- `.nav`, `.nav-inner`, `.nav-logo`, `.nav-links`, `.nav-toggle` — navigation
-- `.table-wrap` / `table` — styled responsive table with dark thead
-- `.filters` — filter bar with `.filter-group` children
-- `.chart-container` / `.chart-title` — chart wrapper
-- `.timeline` / `.timeline-item` / `.timeline-year` — vertical history timeline
-- `.faq-item` / `.faq-question` / `.faq-answer` — accessible accordion (max-height animation)
-- `.members-grid` / `.member-card` / `.member-card-icon` — members hub card layout
-- `.loading` / `.error-msg` — loading and error states
-- Utilities: `.text-amber`, `.text-muted`, `.mt-1` through `.mt-4`, `.mb-0`
-
----
-
-## Google Sheets & Forms Integration
-
-### Architecture
-
-```
-Browser → torontobeekeeping.ca/api/* → Cloudflare Access → Cloudflare Worker → Google Sheets API v4  (read hive data / members)
-          (same origin as the site)                                          → Google Forms API v1    (read form structure)
-                                                                             → Google Sheets API v4   (append hive check submission)
-                                                                    ↑
-                                                          1-hour server-side cache (Cloudflare Cache API)
-```
-
-The Worker is mounted on `torontobeekeeping.ca/api/*` via a zone route, so
-browser fetches are **same-origin** with the rest of the site. This is the
-key design choice and the reason for it is the iOS Safari third-party
-cookie problem: when the Worker lived on `api.torontobeekeeping.ca`,
-iOS WebKit's cookie isolation often refused to honour the `CF_Authorization`
-cookie on the API subdomain, causing browser `fetch(..., { credentials:
-"include" })` calls to silently fail with "Failed to fetch" even though
-desktop browsers worked. Mounting the Worker on the same registrable
-hostname makes the API cookie unambiguously first-party.
-
-Access protection is unchanged: the same "TBC Members Area" Access app
-gates both `torontobeekeeping.ca/members` (the static pages) and
-`torontobeekeeping.ca/api/*` (the Worker). Scripts and CI use the
-`opencode-dev` service token (`non_identity` policy on the same app) to
-bypass Access. The `*.workers.dev` URL is disabled (`workers_dev = false`)
-so the Access policy can't be sidestepped.
-
-### Worker endpoints
-
-All paths are mounted under `/api/` in production
-(e.g. `https://torontobeekeeping.ca/api/hive-data`). The Worker strips the
-`/api` prefix in `fetch()` so the handlers below match unchanged.
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/hive-data` | Fetches hive visit records. Strips `Email address`; maps verbose column names to short keys. Returns `{ rows }`. Cached 1 hour. |
-| `GET` | `/api/members` | Fetches members list. Returns `{ headers, rows }` as-is. Cached 1 hour. |
-| `GET` | `/api/hive-form` | Fetches hive check form structure from Google Forms API. Skips `file_upload` questions. Returns `{ formId, title, description, submitUrl, responderUri, items }`. Cached 1 hour. |
-| `POST` | `/api/hive-form-submit` | Accepts JSON body, appends a row (A:Timestamp, B:Email, C:Date, D:Location, E:Colony, F:Status, G:Treatment, H:Feed, I:Mite count, J:Comments) to hive sheet. Rejects cross-site `Sec-Fetch-Site` with 403 (CSRF defence). Not cached. |
-| `OPTIONS` | `*` | CORS preflight — returns 204 with CORS headers. Same-origin browser fetches don't trigger this. |
+| Method   | Path                    | Cached | Notes |
+|----------|-------------------------|--------|-------|
+| GET      | `/api/hive-data`        | 1h     | Strips the `Email address` column. Returns `{ rows }`. |
+| GET      | `/api/members`          | 1h     | Returns `{ headers, rows }` as-is from the sheet. |
+| GET      | `/api/hive-form`        | 1h     | Form structure from Google Forms API. Skips file-upload questions. |
+| POST     | `/api/hive-form-submit` | no     | Appends a row to the hive sheet. Rejects `Sec-Fetch-Site: cross-site` with 403. |
+| OPTIONS  | `*`                     | no     | CORS preflight. Same-origin browser fetches don't trigger this. |
 
 ### Hive data column mapping
 
-| Sheet column | JS key |
-|---|---|
-| `Where is the hive located?` | `location` |
-| `Which Colony are you checking (A,B,C...)?` | `colony` |
-| `How would you describe the holistic status of this hive?` | `status` |
-| `What is the mite count? ( leave blank if you didn't check)` | `mite_count` |
-| `Are you doing a mite treatment? if so what type of treament?` | `treatment` |
-| `Are you adding feed? if so, what type of feed?` | `feed` |
-| `additional comments for this colony` | `comments` |
-| `Date of Visit` | `date` |
-| `Timestamp` | `timestamp` |
-| `Email address` | *(stripped — never sent to browser)* |
+The Worker translates verbose Google Form column names to short JS keys
+in `processHiveData()`:
 
-Column K (`Do you have any pictures/video...`) is hidden in the sheet and excluded from the Worker range (`A:J`). Google prevents deletion of form-linked columns.
-
-### Status normalisation
-
-Hive status is a free-text radio field. `hive-data.astro` normalises it to `strong/neutral/weak/unknown` using keyword matching in `normaliseStatus()`.
-
-### Worker authentication
-
-The Worker uses a Google Service Account (RS256 JWT → OAuth2 token exchange) implemented entirely with the Web Crypto API (`crypto.subtle`) — no Node.js dependencies. Secrets are stored as Cloudflare Worker secrets (never in code or env files).
-
-OAuth2 scopes used:
-- `spreadsheets.readonly` — for `/hive-data` and `/members`
-- `spreadsheets` (read+write) — for `/hive-form-submit`
-- `forms.body.readonly` — for `/hive-form`
-
----
-
-## Members Area
-
-Routes under `/members/*` are protected by **Cloudflare Access** at the Cloudflare edge. The Astro site itself has no auth logic.
-
-**Auth method:** One-time PIN (OTP) sent to the member's email address.
-**User management:** Automated — `sync-access-policy.yml` runs nightly and syncs emails from the members Sheet to the CF Access allow policy.
-**Session duration:** Configurable in the Access policy (default: 24 hours).
-
-### Members sheet columns
-
-Live sheet currently has 3 columns: `Name`, `Email`, `Phone Number`.
-The Worker reads `TBC Memberships!A:C` (sheet tab named `TBC Memberships`).
-
-- Rows are objects keyed by header name — use `row[header]` not `row[i]`
-- Earlier iterations of the sheet had additional columns (`Committees`,
-  `Partner liaison`, `Swarm Brigade`, `Nearest Intersection`); they were
-  dropped to keep the sheet focused. Re-add columns to the sheet *and*
-  widen `MEMBERS_SHEET_RANGE` together if needed.
-
----
-
-## Environment Variables
-
-| Variable | Where used | Description |
-|---|---|---|
-| `HIVE_WORKER_URL` | local dev only | Optional base URL the Astro pages prepend to `/api/...`. Empty in production (same-origin). Set for local dev pointing at a remote Worker. |
-| `CF_ACCESS_CLIENT_ID` | `.env` / curl scripts | Service token ID for bypassing CF Access in scripts |
-| `CF_ACCESS_CLIENT_SECRET` | `.env` / curl scripts | Service token secret |
-| `CLOUDFLARE_API_TOKEN` | `.env` / maintenance scripts | Optional. Cloudflare API token for ad-hoc API/config changes. |
-
-Worker secrets (set via `wrangler secret put`, never in files):
-
-| Secret | Description |
-|---|---|
-| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Service account `client_email` from JSON key |
-| `GOOGLE_PRIVATE_KEY` | Service account `private_key` from JSON key |
-
-Non-secret config in `worker/wrangler.toml` under `[vars]`:
-
-| Key | Value |
-|---|---|
-| `CACHE_VER` | `5` (increment to bust all edge caches) |
-| `HIVE_SHEET_ID` | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
-| `HIVE_SHEET_RANGE` | `Form responses 1!A:J` |
-| `MEMBERS_SHEET_ID` | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
-| `MEMBERS_SHEET_RANGE` | `TBC Memberships!A:C` |
-| `HIVE_FORM_ID` | `1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac` |
-
-**Other non-secret config:**
-
-| Key | Value |
-|---|---|
-| Cloudflare Account ID | `7679249973b3ca7cd658c198c69e1e5e` |
-| Cloudflare Zone ID (`tbchivecheck.ca`) | `6483c778b21c665836110a7c9c173aec` |
-| Cloudflare Zone ID (`torontobeekeeping.ca`) | `875a91dd2ee58d534459eafaa3b49336` |
-| Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
-| CF Access App: TBC Members Area | id=`40f844bc-ff6b-4669-9ec7-22b4a52cf825`, email policy=`d4a7448f-d652-4b66-b8da-a687077ab066`, service-token policy=`3978a8b4-b6ac-492c-9139-c8abf0ea4337` — covers `torontobeekeeping.ca/members` and `torontobeekeeping.ca/api/*` |
-| CF Access Service Token (opencode-dev) | id=`0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14`, client_id=`2e5b134fc2029cdb755476ee143f6c9e.access`, expires 2027-05-03 |
-
-Tab names with spaces must be single-quoted in the Sheets API range — handled by `quoteRange()` in `worker/index.js`.
-
----
-
-## Development
-
-```bash
-# Requires Node.js v22+
-npm install
-cp .env.example .env    # fill in HIVE_WORKER_URL
-npm run dev             # http://localhost:4321
-npm run build           # production build → dist/
+```
+"Where is the hive located?"                                   → location
+"Which Colony are you checking (A,B,C...)?"                    → colony
+"How would you describe the holistic status of this hive?"     → status
+"What is the mite count? ( leave blank if you didn't check)"   → mite_count
+"Are you doing a mite treatment? if so what type of treament?" → treatment
+"Are you adding feed? if so, what type of feed?"               → feed
+"additional comments for this colony"                          → comments
+"Date of Visit"                                                → date
+"Timestamp"                                                    → timestamp
+"Email address"                                                → STRIPPED (never sent to browser)
 ```
 
-In production the Astro pages call `/api/...` (same origin). For local dev,
-either run wrangler dev for the Worker locally (set `HIVE_WORKER_URL=http://localhost:8787`)
-or point at the live API with `HIVE_WORKER_URL=https://torontobeekeeping.ca`.
+The submit endpoint writes back to columns A:J in the same order the
+Google Form would. Column K (photos) is hidden in the sheet and not used.
 
-Node.js on the host may be v18 (too old for wrangler). Use Docker for all wrangler operations.
+### Worker auth to Google
 
-### Docker
+Service account, RS256 JWT minted in the Worker using Web Crypto API
+(`crypto.subtle`). No Node dependencies. Secrets live as Cloudflare
+Worker secrets:
 
-A Docker Compose setup runs both Astro and the Worker locally against real Google Sheets.
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`: service account `client_email`
+- `GOOGLE_PRIVATE_KEY`: service account `private_key`
 
-**Key gotchas:**
-- Single root `.env` file used by both containers
-- **Worker** must use `node:22-slim` (Debian) — Alpine's musl libc breaks wrangler's `workerd` binary
-- Worker needs `ca-certificates` installed — `workerd` does its own TLS
-- Worker container has **no volume mount** — a volume mount shadows wrangler's downloaded `workerd` binary
-- `entrypoint.sh` writes `.dev.vars` from environment variables before starting `wrangler dev`
-- `GOOGLE_PRIVATE_KEY` in `.dev.vars` must be a single quoted line with literal `\n` — achieved via `awk '{printf "%s\\n", $0}'` in `entrypoint.sh`
-- `HIVE_WORKER_URL` must be `http://localhost:8787` — baked into client-side JS, must be resolvable by the browser
-- `wrangler dev` flags: use `--ip 0.0.0.0` (not `--host`), do NOT use `--local` (deprecated in wrangler v3+)
-- Old `docker-compose` v1 has a `ContainerConfig` KeyError bug — always `docker-compose down` before `up --build`
+OAuth scopes:
+- `spreadsheets.readonly` for hive-data and members
+- `spreadsheets` (read+write) for hive-form-submit
+- `forms.body.readonly` for hive-form
 
----
+## Member auth
 
-## Deployment
+Cloudflare Access on the "TBC Members Area" app gates two path patterns:
 
-### Cloudflare Pages (site)
+- `torontobeekeeping.ca/members` (the static pages)
+- `torontobeekeeping.ca/api` (the Worker)
 
-Pushing to `main` auto-deploys via `deploy-pages.yml`.
+Members log in with a one-time PIN sent by email. The allowed email list
+is auto-synced nightly from the members Google Sheet by
+`.github/workflows/sync-access-policy.yml`.
 
-- Pages project: `tbc-website`
-- Production URL: `https://tbc-website-btd.pages.dev`
-- Custom domain: `https://torontobeekeeping.ca`
-- Build command: `npm run build`
-- Build env: none required (Astro uses relative `/api/...` paths)
-
-`tbchivecheck.ca` is **not** a Pages custom domain — it's a separate Cloudflare zone with a Single Redirect rule that 301s every request to `https://torontobeekeeping.ca/members/hive-check`. See [DNS](#dns) below.
-
-### Cloudflare Worker (API)
-
-Deployed via `deploy-worker.yml` on push to `main` (paths: `worker/**`).
-
-- Worker name: `tbc-sheets-worker`
-- Route: `torontobeekeeping.ca/api/*` (zone route, same-origin with the site)
-- Behind the "TBC Members Area" Cloudflare Access app
-- `*.workers.dev` is disabled (`workers_dev = false` in `wrangler.toml`)
-
----
-
-## GitHub Actions (CI/CD)
-
-**`deploy-pages.yml`** — Triggers on push to `main` (excluding `worker/**`) and `workflow_dispatch`.
-
-**`deploy-worker.yml`** — Triggers on push to `main` (only `worker/**`) and `workflow_dispatch`. Sets Google secrets via `wrangler secret put` on each deploy.
-
-**`sync-access-policy.yml`** — Triggers nightly at 05:00 UTC (midnight Toronto EDT) and `workflow_dispatch`.
-- Fetches `https://torontobeekeeping.ca/api/members` from the live Worker (using the `opencode-dev` service token to bypass Access), extracts all `Email` values, and updates the email allow policy on the single "TBC Members Area" Access app.
-- **Skips the PUT if the policy is already in sync** — diffs the current Access policy against the desired list and only PUTs if they differ.
-- **Refuses to push an empty list** — guards against accidental wipeout if the Worker returns no rows.
-- **Overwrites the email allow policy entirely** — the service token bypass lives in a separate `non_identity` policy on the same app so it survives the nightly sync. Do not merge it into the email policy.
-
----
+Scripts and CI bypass Access using the `opencode-dev` service token, which
+lives in a separate `non_identity` policy on the same app so the nightly
+email sync doesn't wipe it out.
 
 ## Caching
 
-- **Browser caching is disabled** — Worker returns `Cache-Control: no-store`. All caching is server-side.
-- **`POST /hive-form-submit` is never cached** — always hits the Sheets API directly.
-- **Cache key includes `CACHE_VER` and sheet/form ID** — changing either busts the edge cache automatically.
-- **To bust the cache**: increment `CACHE_VER` in `worker/wrangler.toml` and push.
-- **`workers.dev` cache is not purgeable via API** — `CACHE_VER` is the only escape hatch.
-- **Different edge nodes have separate caches** — curl and a browser may return different results during a transition.
+- Browser caching is off (Worker returns `Cache-Control: no-store`).
+- All caching is server-side in Cloudflare's Cache API, 1 hour TTL.
+- POST `/api/hive-form-submit` is never cached.
+- Cache key includes `CACHE_VER` + sheet/form ID. To force-bust the
+  cache, increment `CACHE_VER` in `worker/wrangler.toml` and push.
+- Different edge nodes have separate caches, so curl and a browser may
+  disagree during a transition.
 
----
+## Configuration
+
+### Worker config (`worker/wrangler.toml`)
+
+| Key                   | Value |
+|-----------------------|-------|
+| `CACHE_VER`           | `5` (bump to bust caches) |
+| `HIVE_SHEET_ID`       | `1p-D7_nLmrNIFZyfRJcRO-d_u3PjaSeySLxd6rh5iMGA` |
+| `HIVE_SHEET_RANGE`    | `Form responses 1!A:J` |
+| `MEMBERS_SHEET_ID`    | `1_0gi606_DPJunKEDMx7v6KRwrZA1uVG9f7Cumr2XCqQ` |
+| `MEMBERS_SHEET_RANGE` | `TBC Memberships!A:C` |
+| `HIVE_FORM_ID`        | `1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac` |
+
+Sheet IDs are not secrets and live in version control. Only the Google
+service account credentials are Worker secrets.
+
+### Cloudflare account / zone / app IDs
+
+| What | ID |
+|------|----|
+| Cloudflare Account | `7679249973b3ca7cd658c198c69e1e5e` |
+| Zone: `torontobeekeeping.ca` | `875a91dd2ee58d534459eafaa3b49336` |
+| Zone: `tbchivecheck.ca` | `6483c778b21c665836110a7c9c173aec` |
+| Google Service Account | `tbc-sheets-reader@tbc-website-491722.iam.gserviceaccount.com` |
+| CF Access App (TBC Members Area) | `40f844bc-ff6b-4669-9ec7-22b4a52cf825` |
+| → email allow policy | `d4a7448f-d652-4b66-b8da-a687077ab066` |
+| → service-token policy | `3978a8b4-b6ac-492c-9139-c8abf0ea4337` |
+| CF Access service token (opencode-dev) | `0fac5f0c-1094-4a1f-a2bb-8dd7eeef1e14` |
+| → client_id | `2e5b134fc2029cdb755476ee143f6c9e.access` (expires 2027-05-03) |
+
+### Environment variables (local dev)
+
+| Var | Used for |
+|-----|----------|
+| `HIVE_WORKER_URL` | Optional. Astro pages prepend this to `/api/...`. Empty in production. Set for local dev pointing at a remote Worker. |
+| `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | Service token for curl scripts that need to bypass Access. |
+| `CLOUDFLARE_API_TOKEN` | For ad-hoc Cloudflare API calls. Needs Workers Scripts/Routes Edit, Pages Edit, Account Settings Read, Zone DNS Edit/Zone Read, Access Apps & Policies Edit. |
+
+## Deployment
+
+Every push to `main` triggers CI:
+
+- `.github/workflows/deploy-pages.yml`: rebuilds Astro and pushes to
+  Cloudflare Pages. Skipped if only `worker/**` changed.
+- `.github/workflows/deploy-worker.yml`: runs `wrangler deploy`. Skipped
+  unless `worker/**` changed. Sets Google secrets on each deploy.
+- `.github/workflows/sync-access-policy.yml`: nightly at 05:00 UTC.
+  Fetches `/api/members` with the service token, diffs the email list
+  against the current Access policy, and PUTs an update if they differ.
+  Refuses to push an empty list.
+
+The Pages project is `tbc-website`, custom domain `torontobeekeeping.ca`,
+build command `npm run build`, no build-time env vars needed (Astro uses
+relative `/api/...` paths).
+
+The Worker is `tbc-sheets-worker`, mounted at `torontobeekeeping.ca/api/*`
+as a zone route. `*.workers.dev` is disabled in `wrangler.toml` so the
+Access policy can't be sidestepped.
 
 ## DNS
 
-- Domain `tbchivecheck.ca` registered at **Hover**, nameservers at **Cloudflare** (`rayne.ns.cloudflare.com`, `woz.ns.cloudflare.com`)
-- DNS: `CNAME @ → tbc-website-btd.pages.dev` (proxied) — Cloudflare flattens CNAME at apex. The DNS record is only there so Cloudflare will accept and TLS-terminate traffic; the request never reaches Pages because a Single Redirect fires first (see below).
-- MX record kept for Hover email hosting
+`torontobeekeeping.ca`: Cloudflare zone. Records as needed for Pages and
+the Worker route. No subdomains.
 
-### `tbchivecheck.ca` → `torontobeekeeping.ca/members/hive-check` redirect
+`tbchivecheck.ca`: registered at Hover, nameservers at Cloudflare
+(`rayne.ns.cloudflare.com`, `woz.ns.cloudflare.com`). Single
+`CNAME @ → tbc-website-btd.pages.dev` (proxied) so Cloudflare will
+TLS-terminate, but a Single Redirect rule fires before the request
+reaches Pages.
 
-A **Cloudflare Single Redirect** on the `tbchivecheck.ca` zone 301s every request to `https://torontobeekeeping.ca/members/hive-check` (path and query string discarded).
+### tbchivecheck.ca redirect rule
+
+A Cloudflare Single Redirect on the `tbchivecheck.ca` zone 301s every
+request to `https://torontobeekeeping.ca/members/hive-check`. Path and
+query string are dropped.
 
 - Phase: `http_request_dynamic_redirect`
-- Zone ruleset id: `858a366e1fec401b98641209a0cf10e4`
+- Ruleset id: `858a366e1fec401b98641209a0cf10e4`
 - Rule id: `936c6a9963474e8c9b2e0a815987e0ea`
 - Expression: `(http.host eq "tbchivecheck.ca")`
-- Target: static `https://torontobeekeeping.ca/members/hive-check`, status 301, `preserve_query_string: false`
+- Target: static `https://torontobeekeeping.ca/members/hive-check`, 301, `preserve_query_string: false`
 
-Manage via dashboard: **Cloudflare → tbchivecheck.ca → Rules → Redirect Rules**. Or via API:
+Manage via Cloudflare dashboard → `tbchivecheck.ca` → Rules → Redirect
+Rules, or via API:
 
 ```bash
 curl -s "https://api.cloudflare.com/client/v4/zones/6483c778b21c665836110a7c9c173aec/rulesets/858a366e1fec401b98641209a0cf10e4" \
   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | python3 -m json.tool
 ```
 
-This rule funnels all `tbchivecheck.ca` traffic onto `torontobeekeeping.ca`, where the Worker is also mounted (`/api/*`) — keeping every browser fetch first-party. Don't change the redirect target to a different registrable domain without re-evaluating this.
+The redirect funnels all `tbchivecheck.ca` traffic onto the main zone
+where the Worker is also mounted, so every browser fetch stays
+first-party. Don't change the target to a different registrable domain
+without thinking about that.
 
-### Cloudflare API Token permissions
+## Local development
 
-- Workers Scripts: Edit
-- Workers Routes: Edit
-- Cloudflare Pages: Edit
-- Account Settings: Read
-- Zone - DNS: Edit / Zone: Read
-- Access: Apps and Policies: Edit
+```bash
+npm install              # Node 22+
+npm run dev              # http://localhost:4321
+npm run build            # production build → dist/
+```
 
----
+Astro pages call `/api/...` relative URLs. For local dev, either set
+`HIVE_WORKER_URL=https://torontobeekeeping.ca` to use the live Worker,
+or run wrangler locally and set `HIVE_WORKER_URL=http://localhost:8787`.
 
-## Key Decisions & Gotchas
+The host machine may run Node 18, which is too old for wrangler. The
+Docker Compose setup runs both Astro and the Worker in containers
+against real Google Sheets. Gotchas:
 
-- **No server-side rendering**: Fully static. All dynamic content fetched client-side from the Worker.
-- **Email hidden from frontend**: Worker strips the `Email address` column from hive data — never sent to the browser.
-- **Client-side filtering**: All hive data filtering happens in the browser after the Worker returns the full dataset.
-- **No framework**: Interactive elements (accordion, mobile nav, charts, filters, form rendering) are plain vanilla JS in `<script>` blocks.
-- **Git identity**: Repo uses `JontiH` GitHub account with `~/.ssh/JontiH` key, configured as a local git override (not global). See `git config --local --list`.
-- **Date format from Google Sheets**: Dates arrive as `DD/MM/YYYY`. Use the custom `parseDate()` in `hive-data.astro` — `new Date()` cannot parse this format.
-- **Sheet IDs are not secrets**: Only `GOOGLE_SERVICE_ACCOUNT_EMAIL` and `GOOGLE_PRIVATE_KEY` are Worker secrets. Sheet IDs/ranges/form ID live in `wrangler.toml`.
-- **Hive check form is dynamically rendered**: `hive-check.astro` fetches form structure from `/hive-form` at runtime and builds the form in JS. `file_upload` questions are filtered out server-side. The member's email is read from `GET /cdn-cgi/access/get-identity` (a Cloudflare endpoint on any Access-protected domain) — `CF_Authorization` is HttpOnly and cannot be read via `document.cookie`.
-- **Access policy is code-driven**: `sync-access-policy.yml` manages the allowed email list automatically. The CF Access App ID and Policy ID are hardcoded in the workflow YAML.
-- **Hive photos/video removed**: Google Form question deleted April 2026. Sheet column K is hidden (Google prevents deletion of form-linked columns). Worker range trimmed to `A:J`.
-- **Astro CSS scoping**: `<style>` blocks are scoped by default — dynamically created DOM elements (via `document.createElement`) never get the scope attribute. Use `<style is:global>` for styles targeting JS-created elements.
-- **Astro external CSS + SVG filter IDs**: `filter: url('#id')` in an external CSS file may resolve the fragment against the CSS file's URL, not the document. Set SVG filter references via `element.style.filter` in JS — inline styles always resolve against `document.baseURI`.
-- **SVG filter visibility**: `display:none` on an SVG prevents its `<filter>` / `<defs>` from being usable. Use `position:absolute; width:0; height:0; overflow:hidden` instead.
-- **Uniform clip-path borders**: Two stacked `clip-path: polygon()` elements with different heights cannot produce a uniform border — diagonal slopes differ. Use an SVG `feMorphology operator="dilate"` filter on a *parent* element (filter must be on the parent, not the clipped element itself — CSS applies `filter` before `clip-path` on the same element).
-- **Accessing CF Access-protected pages from scripts**: Use the `opencode-dev` service token. Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers. Credentials in `.env` as `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`. Example: `curl -Ls -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" https://torontobeekeeping.ca/members/hive-check`
+- The Worker container must be `node:22-slim` (Debian). Alpine's musl
+  libc breaks wrangler's `workerd` binary.
+- It needs `ca-certificates` installed because `workerd` does its own TLS.
+- The Worker container has no volume mount. A mount would shadow
+  wrangler's downloaded `workerd` binary.
+- `entrypoint.sh` writes `.dev.vars` from env vars before starting
+  `wrangler dev`. `GOOGLE_PRIVATE_KEY` must be a single quoted line with
+  literal `\n`, produced by `awk '{printf "%s\\n", $0}'`.
+- `HIVE_WORKER_URL=http://localhost:8787` must be reachable from the
+  browser, not just the Astro container.
+- Use `--ip 0.0.0.0` for `wrangler dev`. Don't pass `--local`
+  (deprecated in v3).
+- Old `docker-compose` v1 has a `ContainerConfig` KeyError. Always run
+  `docker-compose down` before `up --build`.
 
----
+## Gotchas
 
-## Next Steps
+- **Date format from Google Sheets**: dates arrive as `DD/MM/YYYY`. Use
+  the `parseDate()` helper in `hive-data.astro`. `new Date()` won't
+  parse this format.
+- **Member email is never exposed to the browser** from hive data. The
+  Worker drops the `Email address` column before returning.
+- **Hive check form is rendered from live Google Form structure**:
+  `hive-check.astro` fetches `/api/hive-form` at runtime and builds the
+  form in JS. Adding a question to the Form makes it appear on the
+  website within an hour. File-upload questions are filtered out.
+- **The member's email is read from `/cdn-cgi/access/get-identity`**, a
+  Cloudflare endpoint on any Access-protected domain. `CF_Authorization`
+  is HttpOnly, so JS can't read it directly.
+- **Astro `<style>` blocks are scoped by default.** Dynamically created
+  DOM elements never get the scope attribute. Use `<style is:global>`
+  for any CSS that targets JS-created elements.
+- **Astro external CSS + SVG filter IDs**: `filter: url('#id')` in an
+  external stylesheet can resolve the fragment against the CSS file's
+  URL, not the document. Set SVG filter refs via `element.style.filter`
+  in JS instead. Inline styles always resolve against `document.baseURI`.
+- **SVG `display:none` hides filter/defs.** Use
+  `position:absolute; width:0; height:0; overflow:hidden` instead.
+- **Uniform clip-path borders need a parent filter.** Two stacked
+  `clip-path: polygon()` layers with different heights produce uneven
+  borders because the diagonal slopes differ. Apply an
+  `feMorphology operator="dilate"` SVG filter on a parent element. CSS
+  applies `filter` before `clip-path` on the same element, so the filter
+  must not be on the clipped element itself.
+- **Worker timestamps are UTC.** `new Date()` in the Worker doesn't know
+  Toronto's timezone. Submissions via the custom form are offset 4-5
+  hours from real Google Form submissions in the sheet. Fix with
+  `Intl.DateTimeFormat` and `timeZone: 'America/Toronto'`.
+- **`alert()` on form submission failure** in `hive-check.astro` is
+  ugly. Should be an inline error state under the submit button.
+- **No custom 404 page.** Astro's default 404 doesn't match the site's
+  look. Add `src/pages/404.astro`.
+- **The public Google Form URL still works.** Anyone with the old link
+  can submit directly to the sheet, bypassing the website form and its
+  Access gate. Either close the Form in the Forms UI or generate a new
+  one and update `HIVE_FORM_ID`.
 
-- **Mobile optimisation**: Review all pages on small screens. Known areas to check: hive-check form section cards, hex pill wrapping, hive-data filter bar, members-list table, nav hamburger menu.
-- **Bug hunt**: General QA pass across all pages — look for layout breaks, JS errors, missing data edge cases (empty hive data, missing fields in member rows).
-- **Worker timestamp timezone**: `new Date()` in the Worker is UTC. Google Form submissions use Toronto local time. Submissions via the custom form will have timestamps offset from real Google Form submissions by up to 5 hours. Fix by formatting the timestamp in `America/Toronto` timezone using `Intl.DateTimeFormat`.
-- **Form submission error uses `alert()`**: `hive-check.astro` calls `alert()` on submission failure. This is ugly and inconsistent with the rest of the UI. Replace with an inline error state below the submit button.
-- **Members sheet tab name is now `TBC Memberships`**: Year-agnostic — won't drift on Jan 1. The spreadsheet *file* title may still include a year, but that's display only and the Worker doesn't read it.
-- **No custom 404 page**: Astro generates a default 404 that won't match the site design. Add a `src/pages/404.astro` matching the site's style.
-- **OG / social sharing images**: No `og:image` is set for any page. Adding page-specific OG images would improve link previews when members share the site.
-- **New Google Form URL**: The public Google Form URL was not regenerated/closed — anyone with the old link can still submit directly to the sheet, bypassing the website form. Consider creating a new Form (updating `HIVE_FORM_ID`) or closing the existing one in the Google Forms UI to disable direct submissions.
+## Accessing protected URLs from the CLI
+
+Use the `opencode-dev` service token:
+
+```bash
+source .env  # loads CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET
+
+curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+     -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+     https://torontobeekeeping.ca/api/hive-data
+```
+
+This works on both `/members/*` (the static pages) and `/api/*` (the
+Worker) because both are gated by the same Access app, which has both
+identity-based (email) and non-identity (service token) policies.
+
+## Git
+
+The repo uses the `JontiH` GitHub account with `~/.ssh/JontiH` as the
+SSH key, configured as a local git override rather than the global
+identity. Check with `git config --local --list`. Pushes need:
+
+```bash
+GIT_SSH_COMMAND="ssh -i ~/.ssh/JontiH -o IdentitiesOnly=yes" git push
+```

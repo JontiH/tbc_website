@@ -1,214 +1,123 @@
-# TBC Website — Setup Guide
+# Setup
 
-This guide covers the one-time setup steps required to fully deploy the site.
-The Astro site (Cloudflare Pages) and the Cloudflare Worker are deployed separately.
-
----
+One-time steps to deploy the site from scratch. The site and the Worker
+deploy separately. For ongoing operational detail see
+[AGENTS.md](AGENTS.md).
 
 ## Prerequisites
 
-- A Cloudflare account (free tier is sufficient)
-- A Google account with access to the TBC Google Sheets
-- Node.js v22+ installed locally
+- Cloudflare account (free tier is fine)
+- Google account with access to the TBC Google Sheets
+- Node.js 22+
 - `wrangler` CLI: `npm install -g wrangler`
 
----
+## 1. Google service account
 
-## 1. Google Cloud — Service Account Setup
+This is how the Worker reads the Sheets without exposing them publicly.
 
-This gives the Worker read-only access to the Google Sheets without exposing them publicly.
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and
+   create a project (e.g. "TBC Website").
+2. Enable **Google Sheets API** and **Google Forms API** under APIs &
+   Services → Library.
+3. Create a service account: APIs & Services → Credentials → Create
+   Credentials → Service Account. Name it `tbc-sheets-reader`. Role can
+   be left blank.
+4. Open the account → Keys → Add Key → Create new key → JSON. Download
+   and keep it safe. Don't commit it.
+5. From the JSON you need `client_email` and `private_key`.
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a new project (e.g. "TBC Website")
-3. Enable the **Google Sheets API**:
-   - Navigation menu → APIs & Services → Library → search "Google Sheets API" → Enable
-4. Create a Service Account:
-   - APIs & Services → Credentials → Create Credentials → Service Account
-   - Name: `tbc-sheets-reader` (or anything)
-   - Role: not required — leave blank, click Done
-5. Open the service account → Keys tab → Add Key → Create new key → JSON
-6. Download the JSON key file — keep this safe, never commit it
+Share both Sheets (hive notes, members list) with the service-account
+email as Viewer. Uncheck "Notify people".
 
-From the downloaded JSON, you will need:
-- `client_email` → this is your `GOOGLE_SERVICE_ACCOUNT_EMAIL`
-- `private_key`  → this is your `GOOGLE_PRIVATE_KEY`
+Sheet IDs are in the URL: `docs.google.com/spreadsheets/d/<SHEET_ID>/edit`.
 
-### Share the sheets with the service account
-
-In each Google Sheet (hive notes and members list):
-1. Click Share
-2. Paste the service account email (`tbc-sheets-reader@YOUR_PROJECT.iam.gserviceaccount.com`)
-3. Set permission to **Viewer**
-4. Uncheck "Notify people"
-5. Click Share
-
-### Get the Sheet IDs
-
-The Sheet ID is in the URL:
-`https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit`
-
-Copy the `SHEET_ID_HERE` part for both sheets.
-
----
-
-## 2. Cloudflare Worker — Deploy
-
-The Worker lives in `worker/` and is deployed independently of the Astro site.
+## 2. Deploy the Worker
 
 ```bash
 cd worker
-npx wrangler login      # authenticate with Cloudflare
-npx wrangler deploy     # deploy the worker
+npx wrangler login
+npx wrangler deploy
 ```
 
-For TBC, the Worker is mounted on the site's own zone at
-`https://torontobeekeeping.ca/api/*` (same origin as the Astro site, behind
-the same Cloudflare Access app). This makes browser fetches first-party,
-sidestepping iOS Safari cross-site cookie blocking. The `*.workers.dev`
-URL is disabled (`workers_dev = false` in `wrangler.toml`) so the Access
-policy cannot be bypassed.
+The Worker is mounted at `torontobeekeeping.ca/api/*` via a zone route
+(same origin as the site). `*.workers.dev` is off so the Access policy
+can't be sidestepped.
 
-### Set Worker Secrets
-
-Run each of these and paste the value when prompted:
+Set the two Google secrets:
 
 ```bash
 npx wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL
-# paste: client_email from the JSON key file
+# paste client_email from the JSON
 
 npx wrangler secret put GOOGLE_PRIVATE_KEY
-# paste: private_key from the JSON key file (include the full -----BEGIN/END----- lines)
-
-npx wrangler secret put HIVE_SHEET_ID
-# paste: the Sheet ID of the hive notes Google Sheet
-
-npx wrangler secret put HIVE_SHEET_RANGE
-# paste: Sheet1!A:L  (adjust tab name if different)
-
-npx wrangler secret put MEMBERS_SHEET_ID
-# paste: the Sheet ID of the members list Google Sheet
-
-npx wrangler secret put MEMBERS_SHEET_RANGE
-# paste: Sheet1!A:Z  (adjust tab name and column range to match your sheet)
+# paste private_key from the JSON (include the BEGIN/END lines)
 ```
 
-Test the Worker with a service token (see AGENTS.md for IDs):
-```
-https://torontobeekeeping.ca/api/hive-data
-https://torontobeekeeping.ca/api/members
-```
-Pass `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers to bypass
-Access.
+Sheet IDs and ranges live in `wrangler.toml` under `[vars]`, not as
+secrets. Edit there if you need to change them.
 
----
-
-## 3. Cloudflare Pages — Deploy the Astro Site
-
-### First deploy
-
-1. Push this repo to GitHub (under the JontiH account)
-2. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → Pages → Create a project
-3. Connect to GitHub → select the `tbc_website` repo
-4. Build settings:
-   - **Framework preset**: Astro
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-5. No build-time environment variables required (the Astro pages call the
-   Worker at the same origin via `/api/*` — `HIVE_WORKER_URL` only matters
-   for local dev pointing at a remote API)
-6. Click Deploy
-
-### Subsequent deploys
-
-Pushing to `main` triggers an automatic rebuild and deploy.
-
-### Custom domain
-
-Once the site is live on `*.pages.dev`:
-1. Pages project → Custom domains → Add a custom domain
-2. Enter `torontobeekeeping.ca`
-3. Cloudflare will guide you through updating DNS (or it's automatic if the domain is already on Cloudflare)
-
----
-
-## 4. Cloudflare Access — Members Area Auth
-
-This protects `/members/*` so only approved email addresses can access it.
-
-### Enable Zero Trust
-
-1. Go to [one.dash.cloudflare.com](https://one.dash.cloudflare.com)
-2. Create a Zero Trust organisation (free) — choose a team name (e.g. `tbc`)
-
-### Add One-Time PIN identity provider
-
-1. Zero Trust dashboard → Settings → Authentication
-2. Under "Login methods" → Add new → One-time PIN
-3. Save
-
-### Create an Access Application
-
-1. Zero Trust → Access → Applications → Add an application
-2. Choose **Self-hosted**
-3. Settings:
-   - **Application name**: TBC Members Area
-   - **Application domain**: `YOUR_PAGES_SUBDOMAIN.pages.dev/members*`
-     (or `torontobeekeeping.ca/members*` once the domain is live)
-   - **Session duration**: 24 hours (or longer — members shouldn't have to log in often)
-4. Next → Create a policy:
-   - **Policy name**: Members
-   - **Action**: Allow
-   - **Include rule**: Emails → paste all ~50 member email addresses (one per line)
-5. Save
-
-### Managing the email list
-
-When members join or leave:
-1. Zero Trust → Access → Applications → TBC Members Area → Edit
-2. Edit the policy → update the email list
-3. Save
-
-Members will receive an email OTP when they visit `/members` for the first time (or after their session expires). They enter the 6-digit code and are in. Sessions persist so they won't need to do it frequently.
-
----
-
-## 5. Members List Page
-
-The `/members/members-list` page is currently stubbed. Once you share the column headers from the members list Google Sheet:
-
-1. The Worker already has the `/members` endpoint wired up — it returns all columns as-is
-2. The frontend automatically renders whatever columns the sheet contains
-3. No code changes needed — just ensure `MEMBERS_SHEET_ID` and `MEMBERS_SHEET_RANGE` secrets are set
-
----
-
-## 6. Logo
-
-Place your logo file at `public/logo.png` (or update the `src` in `src/components/Nav.astro` if using a different filename/format). The nav and any other references will pick it up automatically.
-
----
-
-## 7. Local Development
+To smoke-test the deployed Worker, use the service token (IDs in
+AGENTS.md):
 
 ```bash
-# Install dependencies (requires Node 22+)
-npm install
-
-# Copy env example and fill in your Worker URL
-cp .env.example .env
-
-# Start dev server
-npm run dev
+curl -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+     -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+     https://torontobeekeeping.ca/api/hive-data
 ```
 
-The site runs at `http://localhost:4321`. The members area will attempt to fetch from the Worker URL in your `.env` file. If the Worker isn't deployed yet, those pages will show a loading error — that's expected.
+## 3. Deploy the site (Cloudflare Pages)
 
----
+1. Push this repo to GitHub.
+2. Cloudflare dashboard → Pages → Create a project → connect to GitHub
+   → select `tbc_website`.
+3. Build settings:
+   - Framework preset: Astro
+   - Build command: `npm run build`
+   - Output directory: `dist`
+4. No build-time env vars needed. The pages call `/api/...` relative
+   to the site origin.
+5. Deploy.
 
-## Worker Cache
+Push to `main` re-deploys automatically after this.
 
-The Worker caches Google Sheets responses for 1 hour using Cloudflare's Cache API. To force a refresh (e.g. after a data update):
+For the custom domain: Pages project → Custom domains → add
+`torontobeekeeping.ca`. Cloudflare handles the DNS if the domain is on
+the same account.
 
-- Option A: Wait for the cache to expire (1 hour)
-- Option B: Deploy a new version of the Worker (`npx wrangler deploy`) — this busts the cache
-- Option C: In the future, add a `?bust=1` query param handler to the Worker
+## 4. Cloudflare Access for the members area
+
+This gates `/members/*` and `/api/*`.
+
+1. [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → create
+   a Zero Trust organisation. Pick any team name (e.g. `tbc`).
+2. Settings → Authentication → add a One-Time PIN login method.
+3. Access → Applications → Add → Self-hosted.
+4. Application settings:
+   - Name: TBC Members Area
+   - Domains: add both `torontobeekeeping.ca/members` and
+     `torontobeekeeping.ca/api`
+   - Session duration: 24 hours
+5. Policy:
+   - Name: Members
+   - Action: Allow
+   - Include: Emails → paste the member email list
+
+For ongoing maintenance, `sync-access-policy.yml` re-syncs this list
+from the members Sheet every night.
+
+## 5. Local dev
+
+```bash
+npm install
+cp .env.example .env
+npm run dev    # http://localhost:4321
+```
+
+If you set `HIVE_WORKER_URL=https://torontobeekeeping.ca` in `.env`, the
+members pages will hit the live (deployed) Worker. To run the Worker
+locally too, use the Docker Compose setup (see AGENTS.md).
+
+## Cache bust
+
+The Worker caches Sheets responses for 1 hour. Force a refresh by
+bumping `CACHE_VER` in `worker/wrangler.toml` and pushing.
