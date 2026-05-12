@@ -102,13 +102,33 @@ flowchart LR
 cookie; first-time visitors get a six-digit code by email. After login,
 Pages serves the HTML, the page's JS calls `/api/hive-data` (or
 similar), the same Access cookie authorises the API request, and the
-Worker pulls fresh data from Google Sheets, caches it for an hour, and
-returns JSON.
+Worker returns JSON.
 
-**Hive check submission.** The page calls `/api/hive-form` to render the
-questions from the live Google Form. The member fills it in and posts
-the answers to `/api/hive-form-submit`. The Worker appends a row to the
-hive sheet.
+**Hive check submission.** Members never touch the real Google Form.
+The page calls `/api/hive-form` to read the Form's question list via
+the Google Forms API, then builds a TBC-styled form in JS. On submit,
+the page POSTs the answers to `/api/hive-form-submit`, and the Worker
+appends a row directly to the underlying Sheet via the Sheets API. The
+Form is only a schema definition; the website is the actual UI and the
+submission path.
+
+## Caching
+
+The Worker stores responses in Cloudflare's **edge cache** with a
+1-hour TTL. This cache lives on Cloudflare's servers, not in the
+browser, and is **shared across all members hitting the same Cloudflare
+data centre** (in practice, that's the Toronto edge for everyone). One
+member's request populates the cache for everyone else.
+
+The browser caches nothing. The Worker sends `Cache-Control: no-store`
+on every response, so every page load hits the edge fresh.
+
+A form submission writes to the Sheet immediately, but `/api/hive-data`
+keeps serving the cached pre-submission JSON until its TTL rolls over.
+The new row shows up on Hive Data anywhere between a few seconds and
+~1 hour later, depending on where the cache entry was in its TTL when
+the submission landed. Bumping `CACHE_VER` in `worker/wrangler.toml`
+and re-deploying force-busts all edge caches.
 
 ## Repository layout
 
@@ -147,16 +167,34 @@ serving the site at request time.
 
 ## Running locally
 
+Docker Compose is the recommended path (host doesn't need any specific
+Node version):
+
 ```bash
-# Node 22+
+docker compose up astro
+```
+
+Opens `http://localhost:4321` with the static site running against the
+live deployed Worker. Public pages work fully; members-area API calls
+hit Cloudflare Access and only succeed if you also have an Access
+session in the same browser.
+
+To run the Worker locally too (needs Google service-account credentials
+in `.env`):
+
+```bash
+HIVE_WORKER_URL_OVERRIDE=http://localhost:8787 \
+  docker compose --profile full up
+```
+
+Without Docker, if you have Node 22+ on the host:
+
+```bash
 npm install
 npm run dev          # http://localhost:4321
 ```
 
-That gets you the static site locally. Calls to `/api/*` will fall back
-to the deployed Worker if you set `HIVE_WORKER_URL` in a `.env` file
-(see `.env.example`). To run the Worker locally too, use the Docker
-Compose setup described in AGENTS.md.
+Full details in [AGENTS.md](AGENTS.md#local-development).
 
 ## Editing content
 

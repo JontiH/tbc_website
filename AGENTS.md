@@ -96,13 +96,29 @@ email sync doesn't wipe it out.
 
 ## Caching
 
-- Browser caching is off (Worker returns `Cache-Control: no-store`).
-- All caching is server-side in Cloudflare's Cache API, 1 hour TTL.
-- POST `/api/hive-form-submit` is never cached.
-- Cache key includes `CACHE_VER` + sheet/form ID. To force-bust the
-  cache, increment `CACHE_VER` in `worker/wrangler.toml` and push.
-- Different edge nodes have separate caches, so curl and a browser may
-  disagree during a transition.
+The Worker stores GET responses in Cloudflare's Cache API with a 1-hour
+TTL. The cache lives on Cloudflare's edge servers, not in the browser:
+the Worker sets `Cache-Control: no-store` so the browser never holds a
+copy. Each Cloudflare data centre has its own independent cache, but
+the cache within an edge is **shared across all users** hitting that
+edge. For TBC, traffic effectively all hits the Toronto edge (`YYZ`),
+so in practice it behaves like a single shared cache for the whole
+club.
+
+POST `/api/hive-form-submit` is never cached.
+
+Cache keys are `CACHE_VER` + sheet/form ID and do not include the auth
+cookie, so cached entries are reused across users. The Worker re-attaches
+per-origin CORS headers on each serve (see `worker/index.js`). To
+force-bust the cache, bump `CACHE_VER` in `worker/wrangler.toml` and
+push.
+
+After a hive-check submission, the new row exists in the Sheet
+immediately but won't appear on `/api/hive-data` until that endpoint's
+cache entry expires (between a few seconds and ~1 hour). If this lag
+ever becomes a complaint, the cleanest fix is to have
+`/api/hive-form-submit` explicitly delete the `/api/hive-data` cache
+entry on success.
 
 ## Configuration
 
@@ -201,34 +217,77 @@ without thinking about that.
 
 ## Local development
 
+The recommended path is Docker Compose. The host doesn't need a
+specific Node version because everything runs in containers.
+
+### Docker (recommended)
+
+Two profiles. The default runs only the Astro dev server and points it
+at the live deployed Worker. The `full` profile also runs `wrangler dev`
+locally, which needs Google service-account credentials.
+
+**Astro only, against the live API:**
+
 ```bash
-npm install              # Node 22+
-npm run dev              # http://localhost:4321
-npm run build            # production build → dist/
+docker compose up astro
 ```
 
-Astro pages call `/api/...` relative URLs. For local dev, either set
-`HIVE_WORKER_URL=https://torontobeekeeping.ca` to use the live Worker,
-or run wrangler locally and set `HIVE_WORKER_URL=http://localhost:8787`.
+Opens `http://localhost:4321`. Public pages and members pages render
+identically to production. `/api/*` requests go to
+`https://torontobeekeeping.ca/api/*`, which is Cloudflare Access
+protected, so the members-page JS will see auth failures in the console
+unless you separately authenticate to Access in the same browser. This
+is fine for working on layout, public pages, components, and most JS.
 
-The host machine may run Node 18, which is too old for wrangler. The
-Docker Compose setup runs both Astro and the Worker in containers
-against real Google Sheets. Gotchas:
+For a production build smoke test:
 
-- The Worker container must be `node:22-slim` (Debian). Alpine's musl
-  libc breaks wrangler's `workerd` binary.
-- It needs `ca-certificates` installed because `workerd` does its own TLS.
-- The Worker container has no volume mount. A mount would shadow
-  wrangler's downloaded `workerd` binary.
-- `entrypoint.sh` writes `.dev.vars` from env vars before starting
-  `wrangler dev`. `GOOGLE_PRIVATE_KEY` must be a single quoted line with
-  literal `\n`, produced by `awk '{printf "%s\\n", $0}'`.
-- `HIVE_WORKER_URL=http://localhost:8787` must be reachable from the
-  browser, not just the Astro container.
-- Use `--ip 0.0.0.0` for `wrangler dev`. Don't pass `--local`
-  (deprecated in v3).
-- Old `docker-compose` v1 has a `ContainerConfig` KeyError. Always run
-  `docker-compose down` before `up --build`.
+```bash
+docker compose exec astro npm run build
+```
+
+Generates `dist/` inside the container. Useful for catching build-time
+errors that don't show in dev.
+
+**Full stack (Astro + local Worker):**
+
+```bash
+HIVE_WORKER_URL_OVERRIDE=http://localhost:8787 \
+  docker compose --profile full up
+```
+
+Needs these vars in `.env` for the worker container:
+
+- `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+- `GOOGLE_PRIVATE_KEY` (the full multi-line PEM, kept multi-line — `entrypoint.sh` collapses it)
+- `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `MEMBERS_SHEET_ID`, `MEMBERS_SHEET_RANGE`, `HIVE_FORM_ID` (or accept the defaults from `worker/wrangler.toml`)
+
+Without those vars, the worker container starts but every Worker
+request fails when it tries to mint a JWT.
+
+Gotchas worth knowing if you're touching `worker/Dockerfile` or
+`entrypoint.sh`:
+
+- The worker container must be `node:22-slim` (Debian). Alpine's musl libc breaks wrangler's `workerd` binary.
+- It needs `ca-certificates` because `workerd` does its own TLS.
+- No volume mount on the worker. A mount would shadow wrangler's downloaded `workerd`.
+- `entrypoint.sh` writes `.dev.vars` from env, collapsing `GOOGLE_PRIVATE_KEY` to one line with literal `\n` via `awk`.
+- Use `--ip 0.0.0.0` for `wrangler dev`. Don't pass `--local` (deprecated in v3).
+- If `docker compose up` fails with a `ContainerConfig` KeyError, you're on docker-compose v1. Run `docker compose down` first, then `up --build`.
+
+### Without Docker
+
+Requires Node 22+ on the host. If the host has Node 18 (common on stock
+Debian/Ubuntu), use Docker.
+
+```bash
+npm install
+npm run dev      # http://localhost:4321
+npm run build    # production build → dist/
+```
+
+Set `HIVE_WORKER_URL=https://torontobeekeeping.ca` in `.env` to fetch
+from the live API, or run `wrangler dev` separately and use
+`http://localhost:8787`.
 
 ## Gotchas
 

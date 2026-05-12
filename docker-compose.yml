@@ -1,3 +1,18 @@
+# Local dev with Docker.
+#
+# Two modes:
+#
+# 1. Astro only, hitting the LIVE deployed Worker (recommended for most work):
+#      docker compose up astro
+#    Reaches http://localhost:4321. /api/* calls hit https://torontobeekeeping.ca/api/*
+#    which is Access-protected; without an Access session those calls will 401/302,
+#    but every other part of the site renders normally.
+#
+# 2. Astro + Worker, both local (needs Google service-account creds in .env):
+#      docker compose --profile full up
+#    Adds GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and the sheet IDs
+#    to .env first. See AGENTS.md for which vars and where to get them.
+
 services:
   astro:
     build:
@@ -10,11 +25,13 @@ services:
       - .:/app
       - /app/node_modules
     environment:
-      - HIVE_WORKER_URL=http://localhost:8787
-    depends_on:
-      - worker
+      # Point at the live deployed Worker by default. Override on the
+      # command line if you're running the worker service alongside this:
+      #   HIVE_WORKER_URL=http://localhost:8787 docker compose --profile full up
+      - HIVE_WORKER_URL=${HIVE_WORKER_URL_OVERRIDE:-https://torontobeekeeping.ca}
 
   worker:
+    profiles: ["full"]
     build:
       context: ./worker
       dockerfile: Dockerfile
