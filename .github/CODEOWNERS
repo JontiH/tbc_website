@@ -1,0 +1,3 @@
+# Global code owner: every PR requires review from @JontiH.
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-security/customizing-your-repository/about-code-owners
+*       @JontiH
