@@ -1,0 +1,175 @@
+{
+  "formId": "1r_lj8nvUjM9avrTvlrb9Zd_V0WldP7eUOdUiSH01Jac",
+  "title": "TBC Hive Checklist",
+  "description": "This is the form for checking individual hives at our sites. please fill in one per colony.",
+  "submitUrl": "https://docs.google.com/forms/d/e/1FAIpQLSfwno--WeTl4JwqpPfJZOV2xcFIXBMzUt1MsBEstDqXP9u2Aw/formResponse",
+  "responderUri": "https://docs.google.com/forms/d/e/1FAIpQLSfwno--WeTl4JwqpPfJZOV2xcFIXBMzUt1MsBEstDqXP9u2Aw/viewform",
+  "items": [
+    {
+      "entryId": 968366506,
+      "title": "Date of Visit",
+      "required": true,
+      "type": "date"
+    },
+    {
+      "entryId": 1603540483,
+      "title": "Where is the hive located?",
+      "required": true,
+      "type": "radio",
+      "options": [
+        {
+          "value": "Downsview",
+          "isOther": false
+        },
+        {
+          "value": "Black Creek",
+          "isOther": false
+        },
+        {
+          "value": "Fairmont Royal York",
+          "isOther": false
+        }
+      ]
+    },
+    {
+      "entryId": 951101641,
+      "title": "Which Colony are you checking (A,B,C...)?",
+      "required": true,
+      "type": "radio",
+      "options": [
+        {
+          "value": "A",
+          "isOther": false
+        },
+        {
+          "value": "B",
+          "isOther": false
+        },
+        {
+          "value": "C",
+          "isOther": false
+        },
+        {
+          "value": "D",
+          "isOther": false
+        },
+        {
+          "value": "E",
+          "isOther": false
+        },
+        {
+          "value": "F",
+          "isOther": false
+        },
+        {
+          "value": "G",
+          "isOther": false
+        },
+        {
+          "value": "H",
+          "isOther": false
+        },
+        {
+          "value": "I",
+          "isOther": false
+        },
+        {
+          "value": "J",
+          "isOther": false
+        },
+        {
+          "value": "K",
+          "isOther": false
+        }
+      ]
+    },
+    {
+      "entryId": 1598319452,
+      "title": "How would you describe the holistic status of this hive?",
+      "required": true,
+      "type": "radio",
+      "options": [
+        {
+          "value": "strong \ud83d\udc4d",
+          "isOther": false
+        },
+        {
+          "value": "neutral \ud83d\udc4b",
+          "isOther": false
+        },
+        {
+          "value": "weak\ud83d\udc4e",
+          "isOther": false
+        }
+      ]
+    },
+    {
+      "entryId": 1112718413,
+      "title": "Are you doing a mite treatment? if so what type of treament?",
+      "required": true,
+      "type": "radio",
+      "options": [
+        {
+          "value": "no",
+          "isOther": false
+        },
+        {
+          "value": "oxalic vapour",
+          "isOther": false
+        },
+        {
+          "value": null,
+          "isOther": true
+        }
+      ]
+    },
+    {
+      "entryId": 2069924047,
+      "title": "Are you adding feed? if so, what type of feed?",
+      "required": true,
+      "type": "radio",
+      "options": [
+        {
+          "value": "no",
+          "isOther": false
+        },
+        {
+          "value": "syrup",
+          "isOther": false
+        },
+        {
+          "value": "sugar",
+          "isOther": false
+        },
+        {
+          "value": "fondant",
+          "isOther": false
+        },
+        {
+          "value": "pollen patties",
+          "isOther": false
+        },
+        {
+          "value": "probiotics",
+          "isOther": false
+        },
+        {
+          "value": null,
+          "isOther": true
+        }
+      ]
+    },
+    {
+      "entryId": 1155843952,
+      "title": "What is the mite count? ( leave blank if you didn't check)",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "entryId": 2118440366,
+      "title": "additional comments for this colony",
+      "required": false,
+      "type": "textarea"
+    }
+  ]
+}

@@ -1,41 +1,76 @@
 # Local dev with Docker.
 #
-# Two modes:
+# Three modes, one profile each:
 #
-# 1. Astro only, hitting the LIVE deployed Worker (recommended for most work):
-#      docker compose up astro
-#    Reaches http://localhost:4321. /api/* calls hit https://torontobeekeeping.ca/api/*
-#    which is Access-protected; without an Access session those calls will 401/302,
-#    but every other part of the site renders normally.
+# 1. Live API (no Google creds, no mock; good for layout / public pages):
+#      docker compose --profile live up
+#    http://localhost:4321. /api/* calls hit https://torontobeekeeping.ca/api/*.
+#    Those are CF Access protected; without an Access session they'll fail in
+#    the browser console, but every other part of the site renders normally.
 #
-# 2. Astro + Worker, both local (needs Google service-account creds in .env):
+# 2. Mock API (recommended for everyday dev — no Google creds needed):
+#      docker compose --profile mock up
+#    Astro on :4321, mock server on :8788. The Astro dev server proxies
+#    /api/* and /cdn-cgi/access/* to the mock. Hive submissions append to
+#    in-memory state and appear on Hive Data immediately.
+#    See mocks/server.mjs and mocks/*.json.
+#
+# 3. Real Worker locally via wrangler dev (needs Google creds in .env):
 #      docker compose --profile full up
-#    Adds GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, and the sheet IDs
-#    to .env first. See AGENTS.md for which vars and where to get them.
+#    Astro on :4321, wrangler on :8787. Needs GOOGLE_SERVICE_ACCOUNT_EMAIL,
+#    GOOGLE_PRIVATE_KEY, and the sheet IDs in .env. See AGENTS.md.
 
 services:
-  astro:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: dev
-    ports:
-      - "4321:4321"
+  # ── Mode 1: Live API ───────────────────────────────────────────────────
+  astro-live:
+    profiles: ["live"]
+    build: { context: ., dockerfile: Dockerfile, target: dev }
+    ports: ["4321:4321"]
     volumes:
       - .:/app
       - /app/node_modules
     environment:
-      # Point at the live deployed Worker by default. Override on the
-      # command line if you're running the worker service alongside this:
-      #   HIVE_WORKER_URL=http://localhost:8787 docker compose --profile full up
-      - HIVE_WORKER_URL=${HIVE_WORKER_URL_OVERRIDE:-https://torontobeekeeping.ca}
+      - HIVE_WORKER_URL=https://torontobeekeeping.ca
+
+  # ── Mode 2: Mock API ───────────────────────────────────────────────────
+  astro-mock:
+    profiles: ["mock"]
+    build: { context: ., dockerfile: Dockerfile, target: dev }
+    ports: ["4321:4321"]
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      # Vite dev server proxies /api and /cdn-cgi/access to the mock container.
+      # HIVE_WORKER_URL is empty so the Astro pages use relative /api/... paths,
+      # which means they go through the dev server (and the proxy).
+      - MOCK_API_URL=http://mock:8788
+      - HIVE_WORKER_URL=
+    depends_on: [mock]
+
+  mock:
+    profiles: ["mock"]
+    build: { context: ./mocks }
+    ports: ["8788:8788"]
+    environment:
+      # Email returned by the fake /cdn-cgi/access/get-identity, shown in the
+      # hive-check form's "Submitting as <email>" banner.
+      - MOCK_IDENTITY_EMAIL=${MOCK_IDENTITY_EMAIL:-dev@example.test}
+
+  # ── Mode 3: Full local stack via wrangler dev ─────────────────────────
+  astro-full:
+    profiles: ["full"]
+    build: { context: ., dockerfile: Dockerfile, target: dev }
+    ports: ["4321:4321"]
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - HIVE_WORKER_URL=http://localhost:8787
+    depends_on: [worker]
 
   worker:
     profiles: ["full"]
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    ports:
-      - "8787:8787"
-    env_file:
-      - ./.env
+    build: { context: ./worker, dockerfile: Dockerfile }
+    ports: ["8787:8787"]
+    env_file: [./.env]

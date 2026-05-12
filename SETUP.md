@@ -107,29 +107,18 @@ from the members Sheet every night.
 
 ## 5. Local dev
 
-The recommended path is Docker Compose, because Astro 6 needs Node 22+
-which many host machines don't have:
+Docker Compose is the recommended path. Three profiles:
 
 ```bash
-docker compose up astro
+docker compose --profile mock up   # Astro + in-memory mock API (no creds)
+docker compose --profile live up   # Astro alone, hits live deployed API
+docker compose --profile full up   # Astro + real Worker (needs Google creds)
 ```
 
-This starts the Astro dev server at `http://localhost:4321` and points
-its `/api/*` calls at the live deployed Worker. Members pages will
-render but their API calls hit Cloudflare Access; for that to work you
-need an active Access session in the same browser (or accept that
-those calls fail in dev).
-
-To run the Worker locally too, populate `.env` with the Google
-service-account credentials and the sheet IDs, then:
-
-```bash
-HIVE_WORKER_URL_OVERRIDE=http://localhost:8787 \
-  docker compose --profile full up
-```
-
-See [AGENTS.md](AGENTS.md#local-development) for the full var list and
-gotchas.
+The `mock` profile is the default for day-to-day work; it doesn't need
+any credentials and submissions appear in Hive Data immediately because
+the mock holds rows in memory. See [AGENTS.md](AGENTS.md#local-development)
+for full details.
 
 If you have Node 22+ on the host and don't want Docker:
 

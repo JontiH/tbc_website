@@ -1,0 +1,13 @@
+{
+  "headers": ["Name", "Email", "Phone Number"],
+  "rows": [
+    { "Name": "Ada Lovelace", "Email": "ada.lovelace@example.test", "Phone Number": "416-555-0101" },
+    { "Name": "Bartholomew Beeson", "Email": "bart.beeson@example.test", "Phone Number": "416-555-0102" },
+    { "Name": "Clementine Combs", "Email": "clem.combs@example.test", "Phone Number": "647-555-0103" },
+    { "Name": "Desmond Drone", "Email": "des.drone@example.test", "Phone Number": "" },
+    { "Name": "Esme Eldridge", "Email": "esme.eldridge@example.test", "Phone Number": "905-555-0105" },
+    { "Name": "Fennel Forager", "Email": "fennel.forager@example.test", "Phone Number": "416-555-0106" },
+    { "Name": "Grizelda Gardner", "Email": "g.gardner@example.test", "Phone Number": "416-555-0107" },
+    { "Name": "Hyacinth Hive", "Email": "hyacinth.hive@example.test", "Phone Number": "647-555-0108" }
+  ]
+}

@@ -167,27 +167,21 @@ serving the site at request time.
 
 ## Running locally
 
-Docker Compose is the recommended path (host doesn't need any specific
-Node version):
+Docker Compose, pick a profile based on what you need:
 
 ```bash
-docker compose up astro
+docker compose --profile mock up   # Astro + in-memory mock API (recommended)
+docker compose --profile live up   # Astro pointed at the production API
+docker compose --profile full up   # Astro + real Worker (needs Google creds)
 ```
 
-Opens `http://localhost:4321` with the static site running against the
-live deployed Worker. Public pages work fully; members-area API calls
-hit Cloudflare Access and only succeed if you also have an Access
-session in the same browser.
+The `mock` profile is the everyday choice. It runs the Astro dev server
+on `http://localhost:4321` plus a small mock server at `:8788` that
+serves fake hive data, members, and form structure from `mocks/*.json`.
+Submissions are appended in memory and appear on Hive Data immediately.
+No Google credentials, no Cloudflare Access, fully offline.
 
-To run the Worker locally too (needs Google service-account credentials
-in `.env`):
-
-```bash
-HIVE_WORKER_URL_OVERRIDE=http://localhost:8787 \
-  docker compose --profile full up
-```
-
-Without Docker, if you have Node 22+ on the host:
+Without Docker, if you have Node 22+:
 
 ```bash
 npm install

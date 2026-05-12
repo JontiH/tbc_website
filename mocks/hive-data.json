@@ -1,0 +1,114 @@
+{
+  "rows": [
+    {
+      "timestamp": "01/06/2026 14:23:11",
+      "date": "01/06/2026",
+      "location": "Test Yard North",
+      "colony": "A",
+      "status": "strong - good brood pattern, plenty of stores",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "2",
+      "comments": "First spring check, hive looking great. Queen seen on frame 4."
+    },
+    {
+      "timestamp": "01/06/2026 14:31:02",
+      "date": "01/06/2026",
+      "location": "Test Yard North",
+      "colony": "B",
+      "status": "weak - small cluster, sparse brood",
+      "treatment": "no",
+      "feed": "yes - 1:1 sugar syrup",
+      "mite_count": "8",
+      "comments": "Bees clustered tightly. Added feeder, will revisit in two weeks."
+    },
+    {
+      "timestamp": "08/06/2026 10:15:44",
+      "date": "08/06/2026",
+      "location": "Test Yard South",
+      "colony": "A",
+      "status": "neutral - average brood, moderate stores",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "",
+      "comments": "Did not check mites today. Will sample next visit."
+    },
+    {
+      "timestamp": "15/06/2026 16:02:18",
+      "date": "15/06/2026",
+      "location": "Test Yard North",
+      "colony": "B",
+      "status": "neutral - improving since feed",
+      "treatment": "no",
+      "feed": "yes - fondant",
+      "mite_count": "5",
+      "comments": "Cluster grew. Maintaining feed."
+    },
+    {
+      "timestamp": "22/06/2026 11:48:33",
+      "date": "22/06/2026",
+      "location": "Test Yard South",
+      "colony": "A",
+      "status": "strong - heavy with bees, capped honey",
+      "treatment": "Apivar",
+      "feed": "no",
+      "mite_count": "12",
+      "comments": "Mite count higher than expected. Starting Apivar today."
+    },
+    {
+      "timestamp": "22/06/2026 12:10:51",
+      "date": "22/06/2026",
+      "location": "Test Yard South",
+      "colony": "B",
+      "status": "strong",
+      "treatment": "Apivar",
+      "feed": "no",
+      "mite_count": "9",
+      "comments": "Same yard, treating both colonies."
+    },
+    {
+      "timestamp": "29/06/2026 09:55:21",
+      "date": "29/06/2026",
+      "location": "Test Yard North",
+      "colony": "A",
+      "status": "strong",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "1",
+      "comments": "Excellent. Honey super added."
+    },
+    {
+      "timestamp": "06/07/2026 13:22:09",
+      "date": "06/07/2026",
+      "location": "Test Yard West",
+      "colony": "A",
+      "status": "weak - signs of queenlessness?",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "",
+      "comments": "No eggs seen. Will check again in 4 days before assuming queenless."
+    },
+    {
+      "timestamp": "13/07/2026 17:40:55",
+      "date": "13/07/2026",
+      "location": "Test Yard West",
+      "colony": "A",
+      "status": "neutral - new queen confirmed",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "3",
+      "comments": "Found eggs and young larvae. Queen must have been newly mated."
+    },
+    {
+      "timestamp": "20/07/2026 10:12:30",
+      "date": "20/07/2026",
+      "location": "Test Yard North",
+      "colony": "B",
+      "status": "strong",
+      "treatment": "no",
+      "feed": "no",
+      "mite_count": "4",
+      "comments": "Recovery complete. Doing well."
+    }
+  ]
+}

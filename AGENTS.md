@@ -218,61 +218,82 @@ without thinking about that.
 ## Local development
 
 The recommended path is Docker Compose. The host doesn't need a
-specific Node version because everything runs in containers.
+specific Node version because everything runs in containers. Three
+compose profiles, pick one:
 
-### Docker (recommended)
+| Profile | What runs | When to use |
+|---|---|---|
+| `mock` | Astro + an in-memory mock API | Default for everyday dev. No credentials needed. |
+| `live` | Astro only, pointed at production API | Visual / layout work where you don't need API responses. |
+| `full` | Astro + real Worker via wrangler dev | When you need to test Worker changes against real Google Sheets. Requires Google service-account credentials. |
 
-Two profiles. The default runs only the Astro dev server and points it
-at the live deployed Worker. The `full` profile also runs `wrangler dev`
-locally, which needs Google service-account credentials.
-
-**Astro only, against the live API:**
+### Mock profile (recommended)
 
 ```bash
-docker compose up astro
+docker compose --profile mock up
 ```
 
-Opens `http://localhost:4321`. Public pages and members pages render
-identically to production. `/api/*` requests go to
-`https://torontobeekeeping.ca/api/*`, which is Cloudflare Access
-protected, so the members-page JS will see auth failures in the console
-unless you separately authenticate to Access in the same browser. This
-is fine for working on layout, public pages, components, and most JS.
+Two containers:
+- **astro-mock** on `http://localhost:4321` — the Astro dev server with a
+  Vite proxy that forwards `/api/*` and `/cdn-cgi/access/*` to the mock.
+- **mock** on `http://localhost:8788` — a tiny Node server
+  (`mocks/server.mjs`) that implements the four API endpoints plus the
+  Cloudflare Access identity endpoint. Seed data is in `mocks/*.json`.
+
+Submissions append to in-memory state, so a hive check you submit
+through the form shows up on the Hive Data page immediately. No 1-hour
+cache, no auth. The identity-endpoint mock returns `dev@example.test`
+by default; override with `MOCK_IDENTITY_EMAIL=you@example.com docker
+compose --profile mock up`.
+
+Edits to seed data: change the JSON files in `mocks/` and restart the
+mock container. Edits to mock logic: change `mocks/server.mjs` and
+restart.
+
+### Live profile
+
+```bash
+docker compose --profile live up
+```
+
+Same Astro dev server, but pages fetch from
+`https://torontobeekeeping.ca/api/*` directly (no proxy). Those are
+Cloudflare Access protected, so the members-area JS will see 302s
+in the console unless you separately authenticate to Access in the
+same browser. Fine for working on layout, public pages, and most JS
+that doesn't depend on API responses.
 
 For a production build smoke test:
 
 ```bash
-docker compose exec astro npm run build
+docker compose --profile live exec astro-live npm run build
 ```
 
-Generates `dist/` inside the container. Useful for catching build-time
-errors that don't show in dev.
+Generates `dist/` inside the container.
 
-**Full stack (Astro + local Worker):**
+### Full profile
 
 ```bash
-HIVE_WORKER_URL_OVERRIDE=http://localhost:8787 \
-  docker compose --profile full up
+docker compose --profile full up
 ```
 
-Needs these vars in `.env` for the worker container:
+Astro on :4321, wrangler dev on :8787. Needs these vars in `.env`:
 
 - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
 - `GOOGLE_PRIVATE_KEY` (the full multi-line PEM, kept multi-line — `entrypoint.sh` collapses it)
 - `HIVE_SHEET_ID`, `HIVE_SHEET_RANGE`, `MEMBERS_SHEET_ID`, `MEMBERS_SHEET_RANGE`, `HIVE_FORM_ID` (or accept the defaults from `worker/wrangler.toml`)
 
-Without those vars, the worker container starts but every Worker
-request fails when it tries to mint a JWT.
+Without those, the worker container starts but every request fails when
+it tries to mint a JWT.
 
-Gotchas worth knowing if you're touching `worker/Dockerfile` or
-`entrypoint.sh`:
+Worker container gotchas (only matter if you're touching
+`worker/Dockerfile` or `entrypoint.sh`):
 
-- The worker container must be `node:22-slim` (Debian). Alpine's musl libc breaks wrangler's `workerd` binary.
-- It needs `ca-certificates` because `workerd` does its own TLS.
-- No volume mount on the worker. A mount would shadow wrangler's downloaded `workerd`.
+- Must be `node:22-slim` (Debian). Alpine's musl libc breaks wrangler's `workerd`.
+- Needs `ca-certificates` because `workerd` does its own TLS.
+- No volume mount. A mount would shadow wrangler's downloaded `workerd`.
 - `entrypoint.sh` writes `.dev.vars` from env, collapsing `GOOGLE_PRIVATE_KEY` to one line with literal `\n` via `awk`.
 - Use `--ip 0.0.0.0` for `wrangler dev`. Don't pass `--local` (deprecated in v3).
-- If `docker compose up` fails with a `ContainerConfig` KeyError, you're on docker-compose v1. Run `docker compose down` first, then `up --build`.
 
 ### Without Docker
 
@@ -285,9 +306,9 @@ npm run dev      # http://localhost:4321
 npm run build    # production build → dist/
 ```
 
-Set `HIVE_WORKER_URL=https://torontobeekeeping.ca` in `.env` to fetch
-from the live API, or run `wrangler dev` separately and use
-`http://localhost:8787`.
+For the mock setup without Docker, run `node mocks/server.mjs` in one
+terminal and `MOCK_API_URL=http://localhost:8788 HIVE_WORKER_URL= npm
+run dev` in another.
 
 ## Gotchas
 
