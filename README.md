@@ -181,6 +181,10 @@ serves fake hive data, members, and form structure from `mocks/*.json`.
 Submissions are appended in memory and appear on Hive Data immediately.
 No Google credentials, no Cloudflare Access, fully offline.
 
+The mock's "Submitting as <email>" banner on the hive-check form
+auto-detects your email from `git config user.email`. Override with
+`MOCK_IDENTITY_EMAIL=you@example.com docker compose --profile mock up`.
+
 Without Docker, if you have Node 22+:
 
 ```bash
