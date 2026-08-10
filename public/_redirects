@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects (https://developers.cloudflare.com/pages/configuration/redirects/)
+# Short slug for flyers/social: torontobeekeeping.ca/popup -> events page
+/popup /events 301
+/popup/ /events 301

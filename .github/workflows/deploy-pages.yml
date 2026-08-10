@@ -7,6 +7,13 @@ on:
     paths-ignore:
       - 'worker/**'
   workflow_dispatch:
+  schedule:
+    # Daily rebuild at 09:00 UTC (~4-5am Toronto) so build-time data fetched
+    # from external sources stays fresh. Currently: the events page pulls
+    # pop-up sale locations from a public Google Maps saved list at build
+    # time (src/lib/google-list.mjs). If that fetch/parse breaks, this build
+    # fails loudly while the live site keeps the last good deploy.
+    - cron: '0 9 * * *'
 
 jobs:
   deploy:

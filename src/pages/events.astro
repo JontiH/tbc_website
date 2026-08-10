@@ -1,0 +1,423 @@
+---
+import Base from "../layouts/Base.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import { fetchGoogleList } from "../lib/google-list.mjs";
+
+const currentPath = "/events";
+
+// The pop-up sale locations live in a public Google Maps saved list
+// maintained by the club. They're fetched and baked in at build time, so
+// updating the list + rebuilding the site (nightly, or on any push) updates
+// this page. See src/lib/google-list.mjs.
+const POPUP_LIST_ID = "kcH4Wyo-TLaHMs4gCsL3NQ";
+
+// Event details not present in the Google list. Update as info comes in.
+// Each stand runs ONE of the two timeslots; the per-location time lives in
+// the Google list note and shows on the pins/cards below.
+const EVENT_DATE = "Saturday, August 22";
+const EVENT_TIME = "10 am \u2013 1 pm or 1 pm \u2013 4 pm";
+
+const list = await fetchGoogleList(POPUP_LIST_ID);
+
+const places = list.places.map((p, i) => ({
+  ...p,
+  num: i + 1,
+  directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    `${p.name}, Toronto, ON`
+  )}`,
+}));
+---
+
+<Base
+  title="Events"
+  description={`${list.title} — ${EVENT_DATE}, ${EVENT_TIME}. $10 per 250 ml jar, harvested from hives at Black Creek Community Farm & Downsview Park. Find a pop-up near you at one of ${places.length} locations across Toronto.`}
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <!-- Poster fonts (page-local; Base already preconnects to Google Fonts) -->
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Pacifico&display=swap"
+  />
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>Events</h1>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="container">
+      <!-- Poster-style event banner (art ripped from the print flyer) -->
+      <div class="poster">
+        <div class="poster-hero">
+          <p class="poster-kicker">Something sweet is popping up across&nbsp;the&nbsp;City!</p>
+          <div class="poster-art">
+            <img src="/honey-stand.png" alt="" width="760" height="688" loading="eager" />
+          </div>
+          <h2 class="poster-title">
+            <span class="poster-script" aria-hidden="true">Summer</span>
+            Honey Pop&nbsp;Up Sale
+          </h2>
+          <p class="poster-date">{EVENT_DATE}</p>
+          <p class="poster-time">{EVENT_TIME}</p>
+          <p class="poster-fineprint">* times vary by location &middot; or until sold out</p>
+        </div>
+        <div class="poster-details">
+          <p class="poster-price">$10 per 250 ml jar</p>
+          <p class="poster-source">
+            Harvested from hives at<br />
+            <strong>Black Creek Community Farm &amp; Downsview Park</strong>
+          </p>
+          <p class="poster-proceeds">
+            Proceeds support our non-profit organization and the care of our bees
+          </p>
+        </div>
+      </div>
+
+      <p class="event-intro">
+        Members are popping up honey stands on driveways across the city —
+        find the one closest to you.
+      </p>
+
+      <div id="event-map" aria-label={`Map of ${list.title} locations`}></div>
+
+      <div class="card-grid location-grid">
+        {places.map((p) => (
+          <div class="card location-card">
+            <div class="location-card-head">
+              <span class="location-num">{p.num}</span>
+              <h3>{p.name}</h3>
+            </div>
+            {p.note && <p class="location-note">{p.note}</p>}
+            <a
+              class="btn btn-outline-dark location-directions"
+              href={p.directionsUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              Get directions
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Leaflet (map library) — page-local, loaded from CDN -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    is:inline
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""></script>
+
+  <script is:inline define:vars={{ places }}>
+  /* global L */
+  const map = L.map("event-map", { scrollWheelZoom: false });
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+
+  const markers = places.map((p) => {
+    const icon = L.divIcon({
+      className: "tbc-pin-wrap",
+      html: `<div class="tbc-pin"><span>${p.num}</span></div>`,
+      iconSize: [34, 44],
+      iconAnchor: [17, 44],
+      popupAnchor: [0, -40],
+    });
+    return L.marker([p.lat, p.lng], { icon, title: p.name })
+      .addTo(map)
+      .bindPopup(
+        `<strong>${p.name}</strong><br>` +
+          (p.note ? `${p.note}<br>` : "") +
+          `<a href="${p.directionsUrl}" target="_blank" rel="noopener">Open in Google Maps</a>`
+      );
+  });
+
+  map.fitBounds(L.featureGroup(markers).getBounds(), { padding: [40, 40] });
+  </script>
+
+  <Footer slot="footer" />
+</Base>
+
+<!--
+  Global (not scoped) because Leaflet creates its DOM at runtime, and Astro's
+  scoped styles never reach JS-created elements (see AGENTS.md gotchas).
+-->
+<style is:global>
+  #event-map {
+    height: 460px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    margin: 1.5rem 0 2rem;
+    /* Leaflet panes use high z-indexes; keep the map under the sticky nav */
+    isolation: isolate;
+    z-index: 0;
+  }
+
+  .tbc-pin {
+    width: 34px;
+    height: 34px;
+    background: var(--amber);
+    border: 2px solid var(--charcoal);
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .tbc-pin span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    transform: rotate(45deg);
+    color: var(--charcoal);
+    font-weight: 700;
+    font-size: 0.95rem;
+  }
+
+  #event-map .leaflet-popup-content {
+    font-family: inherit;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  #event-map .leaflet-popup-content a {
+    color: var(--charcoal);
+    font-weight: 600;
+  }
+
+  @media (max-width: 640px) {
+    #event-map {
+      height: 340px;
+    }
+  }
+</style>
+
+<style>
+  /* ── Poster palette (sampled from the print flyer) ────────────────── */
+  .poster {
+    --poster-gold: #dfba4e;
+    --poster-cream: #f7f1de;
+    --poster-brown: #6b4a33;
+    --poster-maroon: #a03b27;
+    --poster-berry: #c2456d;
+    --poster-hex: rgba(255, 255, 255, 0.28);
+
+    max-width: 620px;
+    margin: 0 auto;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+
+  /* Gold arch with faint honeycomb outlines in the corners */
+  .poster-hero {
+    position: relative;
+    isolation: isolate;
+    background: var(--poster-gold);
+    padding: 2.25rem 1.25rem 2.75rem;
+    border-radius: 0 0 50% 50% / 0 0 56px 56px;
+    overflow: hidden;
+  }
+  .poster-hero::before,
+  .poster-hero::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    width: 200px;
+    height: 240px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='104' height='120' viewBox='0 0 104 120'%3E%3Cpath d='M52 6 98 33v54L52 114 6 87V33z' fill='none' stroke='white' stroke-opacity='0.28' stroke-width='6'/%3E%3C/svg%3E");
+    background-size: 104px 120px;
+    pointer-events: none;
+  }
+  .poster-hero::before {
+    top: -30px;
+    right: -30px;
+  }
+  .poster-hero::after {
+    bottom: -40px;
+    left: -30px;
+  }
+
+  /* Bee-stand illustration from the flyer, in a soft cream circle */
+  .poster-art {
+    width: min(280px, 62%);
+    aspect-ratio: 1;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #fdf7e3 0%, #f7edcb 100%);
+    border-radius: 50%;
+  }
+  .poster-art img {
+    width: 88%;
+    height: auto;
+    filter: drop-shadow(0 4px 10px rgba(107, 74, 51, 0.25));
+  }
+
+  .poster-kicker {
+    color: var(--poster-maroon);
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0 0 1.25rem;
+  }
+
+  .poster-title {
+    position: relative;
+    display: inline-block;
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 900;
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+    line-height: 1.05;
+    color: var(--poster-brown);
+    margin: 0.5rem 0 0.75rem;
+    max-width: 14ch;
+  }
+
+  .poster-script {
+    position: absolute;
+    top: -1.1em;
+    left: -0.4em;
+    font-family: "Pacifico", cursive;
+    font-weight: 400;
+    font-size: 0.55em;
+    color: #e8963e;
+    transform: rotate(-8deg);
+    text-shadow:
+      2px 2px 0 #fff,
+      -1px 1px 0 #fff;
+  }
+
+  .poster-date {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 900;
+    font-size: clamp(1.3rem, 3.5vw, 1.8rem);
+    color: var(--poster-brown);
+    margin: 0;
+  }
+
+  .poster-time {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 900;
+    font-size: clamp(1.15rem, 3vw, 1.5rem);
+    color: var(--poster-berry);
+    margin: 0.4rem 0 0;
+  }
+
+  .poster-fineprint {
+    color: var(--poster-berry);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0.35rem 0 0;
+  }
+
+  /* Cream strip under the arch, like the bottom of the flyer */
+  .poster-details {
+    background: var(--poster-cream);
+    padding: 1.75rem 1.5rem 1.5rem;
+  }
+  .poster-price {
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: var(--poster-brown);
+    margin: 0 0 0.5rem;
+  }
+  .poster-source {
+    color: var(--poster-maroon);
+    font-weight: 600;
+    line-height: 1.5;
+    margin: 0 0 0.5rem;
+  }
+  .poster-proceeds {
+    color: var(--poster-maroon);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  /* ── Intro copy ───────────────────────────────────────────────────── */
+  .event-intro {
+    max-width: 34rem;
+    margin: 2rem auto 0;
+    text-align: center;
+    font-size: 1.05rem;
+  }
+
+  @media (max-width: 640px) {
+    .poster-hero {
+      padding: 1.75rem 1rem 2.25rem;
+      border-radius: 0 0 50% 50% / 0 0 36px 36px;
+    }
+    .poster-hero::before,
+    .poster-hero::after {
+      width: 120px;
+      height: 150px;
+      background-size: 68px 78px;
+    }
+    .poster-kicker {
+      font-size: 1.05rem;
+      margin-bottom: 1rem;
+    }
+    .poster-art {
+      width: min(220px, 68%);
+      margin-bottom: 1rem;
+    }
+    .poster-details {
+      padding: 1.25rem 1rem;
+    }
+  }
+
+  /* ── Location cards ───────────────────────────────────────────────── */
+  .location-card-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .location-card-head h3 {
+    margin: 0;
+  }
+
+  .location-num {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--amber);
+    color: var(--charcoal);
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .location-note {
+    font-size: 0.92rem;
+    margin-bottom: 1rem;
+  }
+
+  .location-directions {
+    margin-top: auto;
+  }
+
+  .location-card {
+    display: flex;
+    flex-direction: column;
+  }
+</style>
