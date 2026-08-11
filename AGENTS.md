@@ -15,7 +15,8 @@ Browser
 torontobeekeeping.ca               (Cloudflare zone)
   │
   ├── /                            Cloudflare Pages (static Astro)
-  ├── /about, /membership          Cloudflare Pages
+  ├── /about, /membership, /events Cloudflare Pages
+  ├── /popup                       Cloudflare Pages 301 → /events
   ├── /members/*                   Cloudflare Pages, gated by CF Access
   └── /api/*                       Cloudflare Worker, gated by CF Access
                                      │
@@ -94,6 +95,59 @@ Scripts and CI bypass Access using the `opencode-dev` service token, which
 lives in a separate `non_identity` policy on the same app so the nightly
 email sync doesn't wipe it out.
 
+## Events page
+
+`/events` (`src/pages/events.astro`) is a public page for honey pop-up
+sales. It has two parts:
+
+1. A poster-styled banner reproducing the print flyer in HTML/CSS. The
+   bee-stand illustration was ripped from the flyer PDF (`pdfimages`
+   extracts the image + soft-mask, then PIL merges them into an RGBA PNG,
+   quantizes, and saves to `public/honey-stand.png`, ~65 KB). Display
+   fonts (Fraunces 900, Pacifico) load page-locally from Google Fonts.
+   Palette is sampled from the flyer, not the site's amber theme.
+2. An interactive Leaflet + OpenStreetMap map of the sale locations, plus
+   a card per location. Leaflet 1.9.4 loads from unpkg CDN (CSS + JS with
+   SRI hashes) — no npm dependency. Map/pin/popup CSS is `is:global`
+   because Leaflet builds its DOM at runtime (see the Astro scoped-style
+   gotcha below).
+
+### Where the location data comes from
+
+Locations, per-stand notes/times, and coordinates are **not** hardcoded.
+They're fetched at **build time** from a public Google Maps saved list by
+`src/lib/google-list.mjs`, which:
+
+- Fetches `https://www.google.com/local/userlists/list/<id>` (list id is
+  `POPUP_LIST_ID` in `events.astro`).
+- Google has no official API for saved lists, but the public page
+  server-renders all list data inside an `AF_initDataCallback({key:
+  'ds:0', ... data: [...]})` script blob. The parser extracts that blob
+  and reads: title `data[0][2]`, description `data[0][3]`, places
+  `data[0][5]` (each place: name `[1]`, note `[2]`, lat `[10]`, lng
+  `[11]`, city `[12]`).
+- This is an internal Google format that can change without notice. Every
+  extraction step validates and **throws** on anything unexpected, so a
+  format change fails the site build loudly (CI goes red, the live site
+  keeps the last good deploy) rather than silently publishing an empty
+  map.
+
+The only event details written by hand in `events.astro` are the date,
+the timeslot summary, price, and hive-source copy (constants near the top
+plus the poster markup). Edit those when the season/price changes;
+locations update themselves.
+
+### Keeping it fresh
+
+`deploy-pages.yml` has a nightly `schedule` cron (`0 9 * * *`, ~4-5am
+Toronto) so edits to the Google list appear within ~24h. It also rebuilds
+on any push to `main` and on manual `workflow_dispatch`.
+
+### /popup short slug
+
+`public/_redirects` 301s `/popup` and `/popup/` → `/events` (Cloudflare
+Pages native redirects). Handy short URL for flyers / social / QR codes.
+
 ## Caching
 
 The Worker stores GET responses in Cloudflare's Cache API with a 1-hour
@@ -163,7 +217,9 @@ service account credentials are Worker secrets.
 Every push to `main` triggers CI:
 
 - `.github/workflows/deploy-pages.yml`: rebuilds Astro and pushes to
-  Cloudflare Pages. Skipped if only `worker/**` changed.
+  Cloudflare Pages. Skipped if only `worker/**` changed. Also runs nightly
+  on a `schedule` cron (`0 9 * * *`) to refresh the events page's
+  build-time data from the Google list (see the Events page section).
 - `.github/workflows/deploy-worker.yml`: runs `wrangler deploy`. Skipped
   unless `worker/**` changed. Sets Google secrets on each deploy.
 - `.github/workflows/sync-access-policy.yml`: nightly at 05:00 UTC.
