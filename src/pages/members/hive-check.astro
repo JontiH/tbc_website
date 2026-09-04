@@ -88,12 +88,33 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
   const formWrap  = $("hc-form-wrap");
   const successEl = $("hc-success");
 
+  // When a Cloudflare Access session expires, a fetch() to the API is
+  // 302-redirected to the Access login page. The browser transparently
+  // follows it, so res.ok is true but the body is HTML — res.json() then
+  // throws "unexpected character at line 1 column 1". Detect that here so
+  // we can prompt a re-login instead of showing a cryptic JSON error.
+  function sessionExpired(res) {
+    try {
+      return res.redirected || new URL(res.url).hostname.endsWith("cloudflareaccess.com");
+    } catch {
+      return false;
+    }
+  }
+
+  function promptRelogin() {
+    loadingEl.style.display = "none";
+    errorEl.style.display   = "block";
+    errorEl.innerHTML =
+      `Your session has expired. <a href="">Reload this page</a> to sign in again.`;
+  }
+
   let formStructure = null;
 
   // ── Fetch form structure, then identity separately ──────────────────
   async function init() {
     try {
       const formRes = await fetch(`${WORKER_URL}/api/hive-form`, { credentials: "include" });
+      if (sessionExpired(formRes)) return promptRelogin();
       if (!formRes.ok) throw new Error(`HTTP ${formRes.status}`);
       formStructure = await formRes.json();
       loadingEl.style.display = "none";
@@ -432,6 +453,13 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
         headers:     { "Content-Type": "application/json" },
         body:        JSON.stringify(payload),
       });
+
+      if (sessionExpired(res)) {
+        submitBtn.disabled    = false;
+        submitBtn.textContent = "Submit hive check";
+        alert("Your session has expired. Please reload the page to sign in again, then resubmit.");
+        return;
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));

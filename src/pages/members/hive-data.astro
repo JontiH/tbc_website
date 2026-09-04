@@ -290,6 +290,26 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
   const loadingEl   = $("loading-state");
   const errorEl     = $("error-state");
   const chartsArea  = $("charts-area");
+
+  // When a Cloudflare Access session expires, a fetch() to the API is
+  // 302-redirected to the Access login page. The browser transparently
+  // follows it, so res.ok is true but the body is HTML — res.json() then
+  // throws "unexpected character at line 1 column 1". Detect that here so
+  // we can prompt a re-login instead of showing a cryptic JSON error.
+  function sessionExpired(res) {
+    try {
+      return res.redirected || new URL(res.url).hostname.endsWith("cloudflareaccess.com");
+    } catch {
+      return false;
+    }
+  }
+
+  function promptRelogin() {
+    loadingEl.style.display = "none";
+    errorEl.style.display   = "block";
+    errorEl.innerHTML =
+      `Your session has expired. <a href="">Reload this page</a> to sign in again.`;
+  }
   const miteWrap    = $("mite-chart-wrap");
   const summaryRow  = $("summary-row");
   const tableArea   = $("table-area");
@@ -327,6 +347,7 @@ const WORKER_URL = import.meta.env.HIVE_WORKER_URL ?? "";
       // is a no-op for same-origin but harmless and future-proof for dev setups
       // that point at a remote Access-protected Worker.
       const res = await fetch(`${WORKER_URL}/api/hive-data`, { credentials: "include" });
+      if (sessionExpired(res)) return promptRelogin();
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       allRows = (json.rows ?? []).map((r, i) => ({ ...r, _id: i }));
