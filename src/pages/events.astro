@@ -14,20 +14,32 @@ const EVENT_TIME = "10 am \u2013 1 pm or 1 pm \u2013 4 pm";
 const list = {
   title: "Fall Honey Pop Up Sale 2026",
   places: [
-    { name: "910 Carlaw Ave", note: "10 am - 1 pm - Playter Estates-Danforth", lat: 43.68187, lng: -79.34888 },
-    { name: "97 Monarch Park Ave", note: "10 am - 1 pm - Greenwood-Coxwell", lat: 43.68182, lng: -79.32659 },
-    { name: "91 Barrymore Rd", note: "1 pm - 4 pm - Scarborough (Bendale)", lat: 43.75309, lng: -79.25065 },
-    { name: "7 Yarmouth Rd", note: "1 pm - 4 pm - near Dupont and Christie", lat: 43.67021, lng: -79.41913 },
+    { name: "910 Carlaw Ave", slot: "am", note: "Playter Estates-Danforth", lat: 43.68187, lng: -79.34888 },
+    { name: "97 Monarch Park Ave", slot: "am", note: "Greenwood-Coxwell", lat: 43.68182, lng: -79.32659 },
+    { name: "91 Barrymore Rd", slot: "pm", note: "Scarborough (Bendale)", lat: 43.75309, lng: -79.25065 },
+    { name: "7 Yarmouth Rd", slot: "pm", note: "near Dupont and Christie", lat: 43.67021, lng: -79.41913 },
   ],
 };
 
-const places = list.places.map((p, i) => ({
-  ...p,
-  num: i + 1,
-  directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${p.name}, Toronto, ON`
-  )}`,
-}));
+const slots = [
+  { id: "am", label: "Morning", time: "10 am \u2013 1 pm" },
+  { id: "pm", label: "Afternoon", time: "1 pm \u2013 4 pm" },
+];
+
+// Numbered in slot order so pins 1..n read morning first, then afternoon.
+const places = slots
+  .flatMap((s) => list.places.filter((p) => p.slot === s.id).map((p) => ({ ...p, time: s.time })))
+  .map((p, i) => ({
+    ...p,
+    num: i + 1,
+    directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      `${p.name}, Toronto, ON`
+    )}`,
+  }));
+
+const groups = slots
+  .map((s) => ({ ...s, places: places.filter((p) => p.slot === s.id) }))
+  .filter((g) => g.places.length > 0);
 ---
 
 <Base
@@ -64,7 +76,7 @@ const places = list.places.map((p, i) => ({
           </h2>
           <p class="poster-date">{EVENT_DATE}</p>
           <p class="poster-time">{EVENT_TIME}</p>
-          <p class="poster-fineprint">* times vary by location &middot; or until sold out</p>
+          <p class="poster-fineprint">* times vary by location (see below) &middot; or until sold out</p>
         </div>
         <div class="poster-details">
           <p class="poster-price">$10 per 250 ml jar</p>
@@ -83,27 +95,45 @@ const places = list.places.map((p, i) => ({
         find the one closest to you.
       </p>
 
+      <ul class="slot-legend" aria-label="Map key">
+        {groups.map((g) => (
+          <li class={`slot-${g.id}`}>
+            <span class="slot-dot" aria-hidden="true"></span>
+            <strong>{g.label}</strong> {g.time}
+          </li>
+        ))}
+      </ul>
+
       <div id="event-map" aria-label={`Map of ${list.title} locations`}></div>
 
-      <div class="card-grid location-grid">
-        {places.map((p) => (
-          <div class="card location-card">
-            <div class="location-card-head">
-              <span class="location-num">{p.num}</span>
-              <h3>{p.name}</h3>
-            </div>
-            {p.note && <p class="location-note">{p.note}</p>}
-            <a
-              class="btn btn-outline-dark location-directions"
-              href={p.directionsUrl}
-              target="_blank"
-              rel="noopener"
-            >
-              Get directions
-            </a>
+      {groups.map((g) => (
+        <section class={`slot-group slot-${g.id}`} aria-labelledby={`slot-${g.id}-heading`}>
+          <h2 class="slot-heading" id={`slot-${g.id}-heading`}>
+            <span class="slot-label">{g.label}</span>
+            <span class="slot-time">{g.time}</span>
+          </h2>
+          <div class="card-grid location-grid">
+            {g.places.map((p) => (
+              <div class="card location-card">
+                <div class="location-card-head">
+                  <span class="location-num">{p.num}</span>
+                  <h3>{p.name}</h3>
+                </div>
+                <p class="location-time">{p.time}</p>
+                {p.note && <p class="location-note">{p.note}</p>}
+                <a
+                  class="btn btn-outline-dark location-directions"
+                  href={p.directionsUrl}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Get directions
+                </a>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </section>
+      ))}
     </div>
   </section>
 
@@ -133,7 +163,7 @@ const places = list.places.map((p, i) => ({
   const markers = places.map((p) => {
     const icon = L.divIcon({
       className: "tbc-pin-wrap",
-      html: `<div class="tbc-pin"><span>${p.num}</span></div>`,
+      html: `<div class="tbc-pin slot-${p.slot}"><span>${p.num}</span></div>`,
       iconSize: [34, 44],
       iconAnchor: [17, 44],
       popupAnchor: [0, -40],
@@ -142,6 +172,7 @@ const places = list.places.map((p, i) => ({
       .addTo(map)
       .bindPopup(
         `<strong>${p.name}</strong><br>` +
+          `<span class="tbc-popup-time">${p.time}</span><br>` +
           (p.note ? `${p.note}<br>` : "") +
           `<a href="${p.directionsUrl}" target="_blank" rel="noopener">Open in Google Maps</a>`
       );
@@ -169,10 +200,21 @@ const places = list.places.map((p, i) => ({
     z-index: 0;
   }
 
+  /* Time-slot colours, shared by map pins, legend, headings and cards.
+     Orange vs blue stays distinguishable for most colour-blind visitors. */
+  .slot-am {
+    --slot: var(--amber);
+    --slot-ink: var(--charcoal);
+  }
+  .slot-pm {
+    --slot: #2f6f8f;
+    --slot-ink: #fff;
+  }
+
   .tbc-pin {
     width: 34px;
     height: 34px;
-    background: var(--amber);
+    background: var(--slot, var(--amber));
     border: 2px solid var(--charcoal);
     border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg);
@@ -185,7 +227,7 @@ const places = list.places.map((p, i) => ({
     width: 100%;
     height: 100%;
     transform: rotate(45deg);
-    color: var(--charcoal);
+    color: var(--slot-ink, var(--charcoal));
     font-weight: 700;
     font-size: 0.95rem;
   }
@@ -194,6 +236,9 @@ const places = list.places.map((p, i) => ({
     font-family: inherit;
     font-size: 0.9rem;
     line-height: 1.45;
+  }
+  #event-map .tbc-popup-time {
+    font-weight: 700;
   }
   #event-map .leaflet-popup-content a {
     color: var(--charcoal);
@@ -383,7 +428,58 @@ const places = list.places.map((p, i) => ({
     }
   }
 
+  /* ── Time-slot legend and groups ──────────────────────────────────── */
+  .slot-legend {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+  }
+  .slot-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .slot-dot {
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 50%;
+    background: var(--slot);
+    border: 2px solid var(--charcoal);
+  }
+
+  .slot-group {
+    margin-top: 2rem;
+  }
+  .slot-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin: 0 0 1rem;
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius);
+    background: var(--slot);
+    color: var(--slot-ink);
+    font-size: 1.35rem;
+  }
+  .slot-time {
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
   /* ── Location cards ───────────────────────────────────────────────── */
+  .location-card {
+    border-top: 5px solid var(--slot);
+  }
+
+  .location-time {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
   .location-card-head {
     display: flex;
     align-items: center;
@@ -402,8 +498,8 @@ const places = list.places.map((p, i) => ({
     width: 1.75rem;
     height: 1.75rem;
     border-radius: 50%;
-    background: var(--amber);
-    color: var(--charcoal);
+    background: var(--slot);
+    color: var(--slot-ink);
     font-weight: 700;
     font-size: 0.9rem;
   }
