@@ -115,7 +115,7 @@ sales. It has two parts:
 ### Where the location data comes from
 
 Locations are currently **hardcoded** in the `list` constant in
-`events.astro` (name, timeslot note, lat/lng), because the Google Maps
+`events.astro` (name, `slot`, neighbourhood note, lat/lng), because the Google Maps
 list below was out of date and can only be edited from the owner's
 Google account. Coordinates come from OpenStreetMap Nominatim. The
 flyer's QR code still points at the Google Maps list.
@@ -137,6 +137,19 @@ To go back to the Google list, replace the constant with
   format change fails the site build loudly (CI goes red, the live site
   keeps the last good deploy) rather than silently publishing an empty
   map.
+
+### Time slots
+
+Each place has `slot: "am"` or `"pm"`, matching an entry in the `slots`
+constant (label + time range). The page groups cards under a coloured
+heading per slot, numbers places in slot order (morning first), and
+colours map pins, the map legend, card borders and number badges by
+slot: amber for morning, blue (`#2f6f8f`) for afternoon. The colours are
+the `--slot` / `--slot-ink` custom properties on `.slot-am` / `.slot-pm`
+in the global style block, since the pins are Leaflet-created DOM. To
+add a slot, add it to `slots` and give it a `.slot-<id>` colour rule.
+Places from the Google list have no `slot`, so switching back to it
+means assigning slots some other way (for example, parsing the note).
 
 The date, timeslot summary, price, and hive-source copy are always
 written by hand in `events.astro` (constants near the top plus the
