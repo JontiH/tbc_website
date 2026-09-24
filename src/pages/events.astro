@@ -2,23 +2,24 @@
 import Base from "../layouts/Base.astro";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
-import { fetchGoogleList } from "../lib/google-list.mjs";
-
 const currentPath = "/events";
 
-// The pop-up sale locations live in a public Google Maps saved list
-// maintained by the club. They're fetched and baked in at build time, so
-// updating the list + rebuilding the site (nightly, or on any push) updates
-// this page. See src/lib/google-list.mjs.
-const POPUP_LIST_ID = "kcH4Wyo-TLaHMs4gCsL3NQ";
-
-// Event details not present in the Google list. Update as info comes in.
-// Each stand runs ONE of the two timeslots; the per-location time lives in
-// the Google list note and shows on the pins/cards below.
 const EVENT_DATE = "Saturday, October 3";
 const EVENT_TIME = "10 am \u2013 1 pm or 1 pm \u2013 4 pm";
 
-const list = await fetchGoogleList(POPUP_LIST_ID);
+// Hardcoded while the Google Maps saved list (kcH4Wyo-TLaHMs4gCsL3NQ) is out
+// of date. To read from the list again, swap this for
+// `await fetchGoogleList(id)` from src/lib/google-list.mjs.
+// Coordinates are from OpenStreetMap Nominatim.
+const list = {
+  title: "Fall Honey Pop Up Sale 2026",
+  places: [
+    { name: "910 Carlaw Ave", note: "10 am - 1 pm - Playter Estates-Danforth", lat: 43.68187, lng: -79.34888 },
+    { name: "97 Monarch Park Ave", note: "10 am - 1 pm - Greenwood-Coxwell", lat: 43.68182, lng: -79.32659 },
+    { name: "91 Barrymore Rd", note: "1 pm - 4 pm - Scarborough (Bendale)", lat: 43.75309, lng: -79.25065 },
+    { name: "7 Yarmouth Rd", note: "1 pm - 4 pm - near Dupont and Christie", lat: 43.67021, lng: -79.41913 },
+  ],
+};
 
 const places = list.places.map((p, i) => ({
   ...p,

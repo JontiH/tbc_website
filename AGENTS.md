@@ -114,12 +114,18 @@ sales. It has two parts:
 
 ### Where the location data comes from
 
-Locations, per-stand notes/times, and coordinates are **not** hardcoded.
-They're fetched at **build time** from a public Google Maps saved list by
-`src/lib/google-list.mjs`, which:
+Locations are currently **hardcoded** in the `list` constant in
+`events.astro` (name, timeslot note, lat/lng), because the Google Maps
+list below was out of date and can only be edited from the owner's
+Google account. Coordinates come from OpenStreetMap Nominatim. The
+flyer's QR code still points at the Google Maps list.
 
-- Fetches `https://www.google.com/local/userlists/list/<id>` (list id is
-  `POPUP_LIST_ID` in `events.astro`).
+To go back to the Google list, replace the constant with
+`await fetchGoogleList("kcH4Wyo-TLaHMs4gCsL3NQ")` (import it from
+`../lib/google-list.mjs`). That fetches the list at **build time**, and
+`google-list.mjs`:
+
+- Fetches `https://www.google.com/local/userlists/list/<id>`.
 - Google has no official API for saved lists, but the public page
   server-renders all list data inside an `AF_initDataCallback({key:
   'ds:0', ... data: [...]})` script blob. The parser extracts that blob
@@ -132,16 +138,16 @@ They're fetched at **build time** from a public Google Maps saved list by
   keeps the last good deploy) rather than silently publishing an empty
   map.
 
-The only event details written by hand in `events.astro` are the date,
-the timeslot summary, price, and hive-source copy (constants near the top
-plus the poster markup). Edit those when the season/price changes;
-locations update themselves.
+The date, timeslot summary, price, and hive-source copy are always
+written by hand in `events.astro` (constants near the top plus the
+poster markup). Edit those when the season/price changes.
 
 ### Keeping it fresh
 
 `deploy-pages.yml` has a nightly `schedule` cron (`0 9 * * *`, ~4-5am
-Toronto) so edits to the Google list appear within ~24h. It also rebuilds
-on any push to `main` and on manual `workflow_dispatch`.
+Toronto) so that, when the page reads from the Google list, edits to the
+list appear within ~24h. It also rebuilds on any push to `main` and on
+manual `workflow_dispatch`.
 
 ### /popup short slug
 
