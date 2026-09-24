@@ -15,7 +15,7 @@ const POPUP_LIST_ID = "kcH4Wyo-TLaHMs4gCsL3NQ";
 // Event details not present in the Google list. Update as info comes in.
 // Each stand runs ONE of the two timeslots; the per-location time lives in
 // the Google list note and shows on the pins/cards below.
-const EVENT_DATE = "Saturday, August 22";
+const EVENT_DATE = "Saturday, October 3";
 const EVENT_TIME = "10 am \u2013 1 pm or 1 pm \u2013 4 pm";
 
 const list = await fetchGoogleList(POPUP_LIST_ID);
@@ -58,7 +58,7 @@ const places = list.places.map((p, i) => ({
             <img src="/honey-stand.png" alt="" width="760" height="688" loading="eager" />
           </div>
           <h2 class="poster-title">
-            <span class="poster-script" aria-hidden="true">Summer</span>
+            <span class="poster-script" aria-hidden="true">Fall</span>
             Honey Pop&nbsp;Up Sale
           </h2>
           <p class="poster-date">{EVENT_DATE}</p>
