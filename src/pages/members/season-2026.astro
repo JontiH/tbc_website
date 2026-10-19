@@ -1,0 +1,151 @@
+---
+import Base from "../../layouts/Base.astro";
+import Nav from "../../components/Nav.astro";
+import MembersNav from "../../components/MembersNav.astro";
+import Footer from "../../components/Footer.astro";
+
+const currentPath = "/members/season-2026";
+const img = (name: string) => `/members/season-2026/${name}.png`;
+
+// Counts from the hive-check sheet up to Oct 16, 2026. Losses, new colonies
+// and queens come from the comments, not a form field.
+const stats = [
+  { value: 456, label: "Hive checks" },
+  { value: 80, label: "Yard visits" },
+  { value: 20, label: "Colonies into winter" },
+  { value: 6, label: "Colonies lost" },
+  { value: 6, label: "New colonies" },
+  { value: 8, label: "New queens" },
+  { value: 3, label: "Mite treatment rounds" },
+];
+
+const yards = [
+  { name: "Black Creek", file: "mites-hives-black", w: 1529, h: 773 },
+  { name: "Downsview", file: "mites-hives-downsview", w: 1529, h: 975 },
+  { name: "Royal York", file: "mites-hives-royal", w: 1529, h: 975 },
+];
+---
+
+<Base
+  title="2026 Season"
+  description="What the 2026 hive checks showed across Black Creek, Downsview and Royal York."
+>
+  <Nav slot="nav" currentPath={currentPath} />
+
+  <div class="page-header">
+    <div class="container page-header-content">
+      <h1>2026 Season</h1>
+      <p>What our hive checks showed this year at Black Creek, Downsview and Royal York.</p>
+    </div>
+  </div>
+
+  <MembersNav currentPath={currentPath} />
+
+  <section class="section">
+    <div class="container">
+
+      <div class="season-stats">
+        {stats.map(s => (
+          <div class="season-stat">
+            <span>{s.value}</span>
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Every hive in 2026</div>
+        <img src={img("strength-lines")} width="1855" height="2369" alt="Strength of every hive at each check through 2026, with deaths, splits, swarms, new queens and honey harvests marked" loading="lazy" />
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Mites hive by hive</div>
+        {yards.map(y => (
+          <div class="season-sub">
+            <h3>{y.name}</h3>
+            <img src={img(y.file)} width={y.w} height={y.h} alt={`Mite board readings for each ${y.name} hive`} loading="lazy" />
+          </div>
+        ))}
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Honey taken</div>
+        <img src={img("honey")} width="1605" height="591" alt="Honey supers and frames taken from each hive" loading="lazy" />
+        <p class="season-note">Black Creek A and F had all supers taken on Sep 18 without a count. A second August harvest at Black Creek and Downsview was not recorded.</p>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Words from the notes</div>
+        <img src={img("wordcloud")} width="1425" height="755" alt="Word cloud of words used in the hive-check notes" loading="lazy" />
+        <img class="season-gap" src={img("wordcloud-yards")} width="1773" height="464" alt="Word clouds of words used mostly at each yard" loading="lazy" />
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">The beekeeping year</div>
+        <img src={img("year")} width="1688" height="938" alt="Timeline of feeding, mite treatments and hive work through 2026" loading="lazy" />
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">About the data</div>
+        <ul class="season-about">
+          <li>Strength was rated from April onwards.</li>
+          <li>Mite levels use the words people wrote. Written numbers: 1 to 5 is "a few", 6 to 15 "quite a few", more is "lots". Shaded bands are treatments: blue for oxalic, purple for formic.</li>
+          <li>Word clouds are sized by how many hive checks used each word. The yard clouds only show words used mostly at that yard.</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</Base>
+
+<style>
+  .season-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .season-stat {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.35rem;
+  }
+
+  .season-stat span:first-child {
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: var(--amber-dark);
+    line-height: 1;
+  }
+
+  .season-stat span:last-child {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--charcoal-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .season-sub + .season-sub { margin-top: 1.75rem; }
+  .season-sub h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+  .season-gap { margin-top: 1.25rem; }
+
+  .season-note {
+    margin-top: 0.75rem;
+    font-size: 0.88rem;
+    color: var(--charcoal-mid);
+  }
+
+  .season-about { margin-bottom: 0; color: var(--charcoal-mid); font-size: 0.92rem; }
+</style>
