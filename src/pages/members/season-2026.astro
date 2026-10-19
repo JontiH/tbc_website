@@ -44,11 +44,17 @@ const yards = [
   <section class="section">
     <div class="container">
 
-      <div class="season-stats">
-        {stats.map(s => (
-          <div class="season-stat">
-            <span>{s.value}</span>
-            <span>{s.label}</span>
+      <div class="comb" role="list">
+        {[stats.slice(0, 4), stats.slice(4)].map(row => (
+          <div class="comb-row">
+            {row.map(s => (
+              <div class="cell" role="listitem">
+                <div class="cell-inner">
+                  <span class="cell-value">{s.value}</span>
+                  <span class="cell-label">{s.label}</span>
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -95,40 +101,59 @@ const yards = [
 </Base>
 
 <style>
-  .season-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+  /* Pointy-top hexagons; the second row nests into the first */
+  .comb {
+    --w: clamp(84px, 21vw, 158px);
+    --h: calc(var(--w) * 1.1547);
+    --g: clamp(5px, 1vw, 10px);
+    margin: 0 auto 2rem;
   }
 
-  .season-stat {
-    background: var(--white);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 1.1rem 0.75rem;
+  .comb-row {
+    display: flex;
+    justify-content: center;
+    gap: var(--g);
+  }
+
+  .comb-row + .comb-row { margin-top: calc(var(--h) * -0.25 + var(--g) * 0.5); }
+
+  .cell {
+    position: relative;
+    width: var(--w);
+    height: var(--h);
+    background: var(--amber);
+    clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+    filter: drop-shadow(0 2px 4px rgba(43, 43, 43, 0.12));
+  }
+
+  .cell-inner {
+    position: absolute;
+    inset: 3px;
+    background: linear-gradient(180deg, var(--white) 0%, var(--cream) 100%);
+    clip-path: inherit;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0.3rem;
+    padding: 0 16%;
     text-align: center;
-    gap: 0.35rem;
   }
 
-  .season-stat span:first-child {
-    font-size: 2.1rem;
+  .cell-value {
+    font-size: clamp(1.35rem, 4.2vw, 2.3rem);
     font-weight: 700;
     color: var(--amber-dark);
     line-height: 1;
   }
 
-  .season-stat span:last-child {
-    font-size: 0.75rem;
+  .cell-label {
+    font-size: clamp(0.55rem, 1.4vw, 0.72rem);
     font-weight: 600;
     color: var(--charcoal-mid);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
   }
 
   .season-sub + .season-sub { margin-top: 1.75rem; }
