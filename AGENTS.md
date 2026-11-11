@@ -99,8 +99,8 @@ email sync doesn't wipe it out.
 
 `/events` (`src/pages/events.astro`) shows one upcoming event: the poster
 image (`public/lip-balm-workshop-poster.webp`, also used as the social
-share image via `public/lip-balm-workshop-og.jpg`) next to a details
-card. All copy lives in the `event` constant at the top of the file
+share image via `public/lip-balm-workshop-og.jpg`) at the top, with a
+details card below it. All copy lives in the `event` constant at the top of the file
 (title, date, venue, price, register URL, email). The Register link is the
 URL behind the poster's QR code (a Google Form via bit.ly). The "Add to
 calendar" link is built from the same constant, with the UTC times
@@ -185,7 +185,7 @@ service account credentials are Worker secrets.
 ## Event sticker
 
 `src/components/EventSticker.astro` (rendered from `Base.astro`) is a fixed
-round badge at the top left of every page linking to `/events`. It is
+quarter circle under the nav at the left edge of every page linking to `/events`. It is
 hidden on `/events` itself, can be dismissed for the session, and drops out
 of the build after `hideAfter`. Edit the `sticker` constant for each event.
 The nightly Pages build is what removes it after the date.
