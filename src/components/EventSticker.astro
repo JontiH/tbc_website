@@ -67,12 +67,18 @@ const headingTop = path === "/" ? 204 : 121;
     height: var(--r);
     filter: drop-shadow(0 4px 10px rgba(43, 43, 43, 0.3));
   }
-  /* Radius reaches the top-left corner of the first heading, minus a gap.
-     Container content starts at max(1.5rem, 50vw - 526px). */
+  /* The arc reaches the left edge of the page content (the line the hero tag
+     and headings start on), which is max(1.5rem, 50vw - 526px) from the left.
+     Below 11rem the text would not fit, so that is the floor; the hypot term
+     keeps the arc clear of the first heading when the floor applies. */
   @supports (width: hypot(1px, 1px)) {
     .event-sticker {
       --content-left: max(1.5rem, calc(50vw - 526px));
-      --r: min(18rem, calc(hypot(var(--content-left), var(--heading-top)) - 10px));
+      --r: min(
+        max(var(--content-left), 11rem),
+        calc(hypot(var(--content-left), var(--heading-top)) - 10px),
+        30rem
+      );
     }
   }
   :global(html.sticker-dismissed) .event-sticker {
