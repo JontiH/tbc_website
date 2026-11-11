@@ -2,47 +2,27 @@
 import Base from "../layouts/Base.astro";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import { event } from "../lib/event.mjs";
 const currentPath = "/events";
 
-const event = {
-  title: "Beeswax Lip and Hand Balm Workshop",
-  dateLabel: "Saturday, December 5, 2026",
-  timeLabel: "2 pm \u2013 4 pm",
-  venue: "Carrot Common",
-  address: "348 Danforth Ave, Room 212",
-  directions: "The door for Room 212 is on the west side of Book City.",
-  price: "$25 per person",
-  takeHome: "Two lip balms and one hand balm",
-  registerUrl: "https://bit.ly/4iwKLMg",
-  email: "torontobeekeeperscollective@gmail.com",
-};
+const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.mapsQuery)}`;
 
-const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-  "Carrot Common, 348 Danforth Ave, Toronto, ON"
-)}`;
-
-// 2 pm to 4 pm EST on Dec 5, 2026 (UTC-5)
+const gcalTime = (iso: string) => iso.replace(/[-:]/g, "").replace(/\.\d+/, "");
 const calendarUrl =
   "https://calendar.google.com/calendar/render?" +
   new URLSearchParams({
     action: "TEMPLATE",
     text: event.title,
-    dates: "20261205T190000Z/20261205T210000Z",
+    dates: `${gcalTime(event.start)}/${gcalTime(event.end)}`,
     location: `${event.venue}, ${event.address}, Toronto, ON`,
     details: `${event.directions} Register: ${event.registerUrl}`,
   }).toString();
-
-const posterAlt =
-  "Poster for the Toronto Beekeepers Collective beeswax lip and hand balm workshop. " +
-  "Great for gifts! Take home two lip balms and one hand balm. " +
-  "Carrot Common, 348 Danforth, Room 212. Saturday, December 5, 2026, 2 pm to 4 pm. " +
-  "$25 per person. Register by QR code or email torontobeekeeperscollective@gmail.com.";
 ---
 
 <Base
   title="Events"
-  description={`${event.title}: ${event.dateLabel}, ${event.timeLabel} at ${event.venue}, ${event.address}. ${event.price}. Take home two lip balms and one hand balm.`}
-  ogImage="https://torontobeekeeping.ca/lip-balm-workshop-og.jpg"
+  description={`${event.title}: ${event.dateLabel}, ${event.timeLabel} at ${event.venue}, ${event.address}. ${event.price}. ${event.description}`}
+  ogImage={event.poster.ogSrc}
 >
   <Nav slot="nav" currentPath={currentPath} />
 
@@ -54,25 +34,23 @@ const posterAlt =
 
   <section class="section">
     <div class="container">
-      <div class="workshop">
-        <a class="workshop-poster" href="/lip-balm-workshop-poster.webp" aria-label="Open the poster full size">
+      <div class="event">
+        <a class="event-poster" href={event.poster.src} aria-label="Open the poster full size">
           <img
-            src="/lip-balm-workshop-poster.webp"
-            alt={posterAlt}
-            width="1122"
-            height="1402"
+            src={event.poster.src}
+            alt={event.poster.alt}
+            width={event.poster.width}
+            height={event.poster.height}
             loading="eager"
           />
         </a>
 
-        <div class="workshop-info">
-          <p class="workshop-kicker">Upcoming workshop</p>
+        <div class="event-info">
+          <p class="event-kicker">Upcoming {event.kind}</p>
           <h2>{event.title}</h2>
-          <p class="workshop-lede">
-            Make beeswax balms with the club and take them home. Great for gifts.
-          </p>
+          <p class="event-lede">{event.blurb}</p>
 
-          <dl class="workshop-facts">
+          <dl class="event-facts">
             <div>
               <dt>When</dt>
               <dd>
@@ -85,20 +63,22 @@ const posterAlt =
               <dd>
                 <strong>{event.venue}</strong><br />
                 {event.address}<br />
-                <span class="workshop-note">{event.directions}</span>
+                <span class="event-note">{event.directions}</span>
               </dd>
             </div>
             <div>
               <dt>Cost</dt>
               <dd><strong>{event.price}</strong></dd>
             </div>
-            <div>
-              <dt>You take home</dt>
-              <dd>{event.takeHome}</dd>
-            </div>
+            {event.extras.map((row) => (
+              <div>
+                <dt>{row.label}</dt>
+                <dd>{row.value}</dd>
+              </div>
+            ))}
           </dl>
 
-          <div class="workshop-actions">
+          <div class="event-actions">
             <a class="btn btn-primary" href={event.registerUrl} target="_blank" rel="noopener">
               Register
             </a>
@@ -110,9 +90,9 @@ const posterAlt =
             </a>
           </div>
 
-          <p class="workshop-email">
+          <p class="event-email">
             Prefer email? Write to
-            <a href={`mailto:${event.email}?subject=${encodeURIComponent("Lip and hand balm workshop")}`}>{event.email}</a>.
+            <a href={`mailto:${event.email}?subject=${encodeURIComponent(event.emailSubject)}`}>{event.email}</a>.
           </p>
         </div>
       </div>
@@ -123,7 +103,7 @@ const posterAlt =
 </Base>
 
 <style>
-  .workshop {
+  .event {
     display: flex;
     flex-direction: column;
     gap: 3rem;
@@ -131,19 +111,19 @@ const posterAlt =
     margin: 0 auto;
   }
 
-  .workshop-poster {
+  .event-poster {
     display: block;
     border-radius: var(--radius);
     overflow: hidden;
     box-shadow: var(--shadow-lg);
     line-height: 0;
   }
-  .workshop-poster img {
+  .event-poster img {
     width: 100%;
     height: auto;
   }
 
-  .workshop-kicker {
+  .event-kicker {
     margin: 0 0 0.25rem;
     font-size: 0.85rem;
     font-weight: 700;
@@ -151,15 +131,15 @@ const posterAlt =
     text-transform: uppercase;
     color: var(--amber-dark);
   }
-  .workshop-info h2 {
+  .event-info h2 {
     margin: 0 0 0.5rem;
   }
-  .workshop-lede {
+  .event-lede {
     font-size: 1.1rem;
     margin: 0 0 1.5rem;
   }
 
-  .workshop-facts {
+  .event-facts {
     margin: 0 0 1.75rem;
     padding: 0;
     display: grid;
@@ -169,52 +149,52 @@ const posterAlt =
     border-radius: var(--radius);
     box-shadow: var(--shadow);
   }
-  .workshop-facts > div {
+  .event-facts > div {
     display: grid;
     grid-template-columns: 8.5rem 1fr;
     gap: 1rem;
     padding: 1rem 1.25rem;
     border-top: 1px solid var(--border);
   }
-  .workshop-facts > div:first-child {
+  .event-facts > div:first-child {
     border-top: 0;
   }
-  .workshop-facts dt {
+  .event-facts dt {
     font-weight: 700;
     color: var(--amber-dark);
   }
-  .workshop-facts dd {
+  .event-facts dd {
     margin: 0;
     line-height: 1.5;
   }
-  .workshop-note {
+  .event-note {
     font-size: 0.92rem;
     color: var(--charcoal-mid);
   }
 
-  .workshop-actions {
+  .event-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
   }
-  .workshop-email {
+  .event-email {
     margin: 1.25rem 0 0;
     font-size: 0.95rem;
     overflow-wrap: anywhere;
   }
 
   @media (max-width: 640px) {
-    .workshop {
+    .event {
       gap: 2rem;
     }
   }
 
   @media (max-width: 480px) {
-    .workshop-facts > div {
+    .event-facts > div {
       grid-template-columns: 1fr;
       gap: 0.15rem;
     }
-    .workshop-actions .btn {
+    .event-actions .btn {
       flex: 1 1 100%;
       justify-content: center;
     }

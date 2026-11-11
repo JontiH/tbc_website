@@ -1,19 +1,16 @@
 ---
+import { event } from "../lib/event.mjs";
+
 export interface Props {
   currentPath?: string;
 }
 const { currentPath = "/" } = Astro.props;
 
-// Update these for each event. The browser hides the sticker at `hideAfter`;
-// the nightly rebuild then drops it from the markup.
 const sticker = {
-  id: "lip-balm-2026",
+  id: event.id,
   href: "/events",
-  kicker: "Upcoming",
-  title: "Lip balm workshop",
-  date: "Dec 5",
-  // Dec 6 00:00 Toronto (EST, UTC-5)
-  hideAfter: new Date("2026-12-06T05:00:00Z"),
+  ...event.sticker,
+  hideAfter: new Date(event.sticker.expires),
 };
 
 const path = currentPath.replace(/\/$/, "") || "/";

@@ -95,23 +95,55 @@ Scripts and CI bypass Access using the `opencode-dev` service token, which
 lives in a separate `non_identity` policy on the same app so the nightly
 email sync doesn't wipe it out.
 
-## Events page
+## Events page and sticker
 
-`/events` (`src/pages/events.astro`) shows one upcoming event: the poster
-image (`public/lip-balm-workshop-poster.webp`, also used as the social
-share image via `public/lip-balm-workshop-og.jpg`) at the top, with a
-details card below it. All copy lives in the `event` constant at the top of the file
-(title, date, venue, price, register URL, email). The Register link is the
-URL behind the poster's QR code (a Google Form via bit.ly). The "Add to
-calendar" link is built from the same constant, with the UTC times
-hardcoded in `calendarUrl`, so update both when the date changes.
+One upcoming event drives both the `/events` page and a site-wide sticker.
+All of its content is in `src/lib/event.mjs`: title, blurb, UTC start and
+end, date and time labels, venue, address, price, register URL, email,
+extra card rows, poster paths and alt text, and the sticker text and expiry.
 
-For the next event, replace the poster files, the `event` constant, the
-`posterAlt` text and the calendar times.
+- `/events` (`src/pages/events.astro`): the poster at the top, with a details
+  card below it (When, Where, Cost, extras) and Register, Add to calendar and
+  Get directions buttons. The calendar link is built from `start` and `end`.
+- Sticker (`src/components/EventSticker.astro`, rendered from `Base.astro`):
+  a quarter circle in the top-left corner, over the nav, linking to
+  `/events`. Details below.
 
-The previous honey pop-up page (Leaflet map, per-slot colours, locations
-list) is in git history. `src/lib/google-list.mjs` is kept for it and is
-currently unused.
+### Adding the next event
+
+1. Put the poster in `public/` as a webp (about 1100px wide, under 200 KB)
+   and a JPEG copy for link previews (some scrapers skip webp).
+2. Edit `src/lib/event.mjs`. Change `id` (a new id shows the sticker again to
+   people who dismissed the old one), the text, the UTC `start` and `end`,
+   the poster paths and alt text, and `sticker.expires`. Convert Toronto
+   times to UTC: EST is UTC-5 (winter), EDT is UTC-4 (summer).
+3. Get the Register URL by decoding the poster's QR code
+   (`pip install --target /tmp/x opencv-python-headless`, then
+   `cv2.QRCodeDetector().detectAndDecode`) rather than retyping it.
+4. Build in Docker (host Node is 18) and check `/events` and the home page at
+   desktop and phone widths. Push to `main` to deploy.
+5. Delete the old poster files from `public/`.
+
+Old events live in git history. The previous honey pop-up page (Leaflet map,
+time-slot colours) is there too, and `src/lib/google-list.mjs` is kept for it
+and currently unused.
+
+### Sticker behaviour
+
+- Hidden on `/events` itself, and in the browser once `sticker.expires`
+  passes, so it expires on time even if no rebuild has run. The nightly
+  Pages build then drops it from the markup.
+- The close button hides it for the browser session (sessionStorage key
+  `tbc-sticker-<id>`). A tiny script before the markup sets a class on
+  `<html>` so a dismissed sticker never flashes.
+- It is absolutely positioned, so it scrolls away with the page, and it hides
+  while the mobile menu is open.
+- Its radius `--r` equals the distance from the left edge of the page to the
+  content line (where the hero tag and headings start), with an 11rem floor
+  for narrow screens. The floor is capped so the arc stops short of the first
+  heading. `headingTop` in the component (204px for the home hero, 121px for
+  page headers, measured from the top of the page) feeds that cap, so update
+  it if the hero or page-header layout changes.
 
 ### /popup short slug
 
@@ -181,23 +213,6 @@ service account credentials are Worker secrets.
 | `HIVE_WORKER_URL` | Optional. Astro pages prepend this to `/api/...`. Empty in production. Set for local dev pointing at a remote Worker. |
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | Service token for curl scripts that need to bypass Access. |
 | `CLOUDFLARE_API_TOKEN` | For ad-hoc Cloudflare API calls. Needs Workers Scripts/Routes Edit, Pages Edit, Account Settings Read, Zone DNS Edit/Zone Read, Access Apps & Policies Edit. |
-
-## Event sticker
-
-`src/components/EventSticker.astro` (rendered from `Base.astro`) is a large
-quarter circle in the top-left corner of every page, over the nav, linking
-to `/events`. It is absolutely positioned, so it scrolls away with the page,
-and it hides itself while the mobile menu is open. It is hidden on `/events`
-itself, can be dismissed for the session, and drops out of the build after
-`hideAfter` (checked in the browser, so it hides on time even if no rebuild
-has run). Edit the `sticker` constant for each event; its `id` keys the dismissal
-in sessionStorage, so a new id shows the sticker again. The nightly Pages
-build then removes it from the markup. Its radius `--r` equals the distance from the left edge of the page to the
-content line (where the hero tag and headings start), with an 11rem floor for
-narrow screens. The floor is capped so the arc stops short of the first
-heading (`headingTop`: 204px for the home hero, 121px for page headers,
-measured from the top of the page). If the hero or page-header layout
-changes, update those numbers.
 
 ## Deployment
 
