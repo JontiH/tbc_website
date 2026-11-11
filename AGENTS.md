@@ -189,9 +189,10 @@ quarter circle in the top-left corner of every page, over the nav, linking
 to `/events`. It is absolutely positioned, so it scrolls away with the page,
 and it hides itself while the mobile menu is open. It is hidden on `/events`
 itself, can be dismissed for the session, and drops out of the build after
-`hideAfter`. Edit the `sticker` constant for each event; its `id` keys the dismissal
+`hideAfter` (checked in the browser, so it hides on time even if no rebuild
+has run). Edit the `sticker` constant for each event; its `id` keys the dismissal
 in sessionStorage, so a new id shows the sticker again. The nightly Pages
-build is what removes it after the date. Its radius `--r` equals the distance from the left edge of the page to the
+build then removes it from the markup. Its radius `--r` equals the distance from the left edge of the page to the
 content line (where the hero tag and headings start), with an 11rem floor for
 narrow screens. The floor is capped so the arc stops short of the first
 heading (`headingTop`: 204px for the home hero, 121px for page headers,

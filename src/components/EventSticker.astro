@@ -4,15 +4,16 @@ export interface Props {
 }
 const { currentPath = "/" } = Astro.props;
 
-// Update these for each event. The site rebuilds nightly, so the sticker
-// disappears the first night after `hideAfter`.
+// Update these for each event. The browser hides the sticker at `hideAfter`;
+// the nightly rebuild then drops it from the markup.
 const sticker = {
   id: "lip-balm-2026",
   href: "/events",
   kicker: "Upcoming",
   title: "Lip balm workshop",
   date: "Dec 5",
-  hideAfter: new Date("2026-12-05T21:00:00Z"),
+  // Dec 6 00:00 Toronto (EST, UTC-5)
+  hideAfter: new Date("2026-12-06T05:00:00Z"),
 };
 
 const path = currentPath.replace(/\/$/, "") || "/";
@@ -26,7 +27,8 @@ const headingTop = path === "/" ? 204 : 121;
 {show && (
   <>
     {/* Runs before the sticker is parsed so a dismissed sticker never paints. */}
-    <script is:inline define:vars={{ key: `tbc-sticker-${sticker.id}` }}>
+    <script is:inline define:vars={{ key: `tbc-sticker-${sticker.id}`, expires: sticker.hideAfter.getTime() }}>
+      if (Date.now() >= expires) document.documentElement.classList.add("sticker-dismissed");
       try {
         if (sessionStorage.getItem(key)) document.documentElement.classList.add("sticker-dismissed");
       } catch (e) {}
