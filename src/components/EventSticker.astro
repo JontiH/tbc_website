@@ -14,11 +14,16 @@ const sticker = {
   hideAfter: new Date("2026-12-05T21:00:00Z"),
 };
 
-const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sticker.hideAfter;
+const path = currentPath.replace(/\/$/, "") || "/";
+const show = path !== sticker.href && new Date() < sticker.hideAfter;
+
+// Distance from the top of the page to the first heading (hero h1 on the home
+// page, page-header h1 elsewhere). The arc is sized to stop just short of it.
+const headingTop = path === "/" ? 204 : 121;
 ---
 
 {show && (
-  <div class="event-sticker" id="event-sticker">
+  <div class="event-sticker" id="event-sticker" style={`--heading-top: ${headingTop}px`}>
     <a class="event-sticker-link" href={sticker.href}>
       <span class="event-sticker-text">
         <span class="event-sticker-kicker">{sticker.kicker}</span>
@@ -51,23 +56,25 @@ const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sti
   /* Quarter circle in the top-left corner, over the nav. Absolute (not fixed)
      so it scrolls away with the page instead of covering content. */
   .event-sticker {
-    --r: min(40vw, 36rem);
+    --r: 11rem;
     position: absolute;
     top: 0;
     left: 0;
     z-index: 120;
     width: var(--r);
     height: var(--r);
-    transform-origin: top left;
-    transition: transform 0.2s ease;
     filter: drop-shadow(0 4px 10px rgba(43, 43, 43, 0.3));
+  }
+  /* Radius reaches the top-left corner of the first heading, minus a gap.
+     Container content starts at max(1.5rem, 50vw - 526px). */
+  @supports (width: hypot(1px, 1px)) {
+    .event-sticker {
+      --content-left: max(1.5rem, calc(50vw - 526px));
+      --r: min(18rem, calc(hypot(var(--content-left), var(--heading-top)) - 10px));
+    }
   }
   .event-sticker[hidden] {
     display: none;
-  }
-  .event-sticker:hover,
-  .event-sticker:focus-within {
-    transform: scale(1.03);
   }
   /* The mobile menu opens full width under the sticker. */
   :global(body:has(.nav-links.open)) .event-sticker {
@@ -79,82 +86,61 @@ const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sti
     inset: 0;
     display: block;
     border-radius: 0 0 var(--r) 0;
-    border-right: 6px solid #fff;
-    border-bottom: 6px solid #fff;
+    border-right: 5px solid #fff;
+    border-bottom: 5px solid #fff;
     background: radial-gradient(circle at 0 0, #ffc857 0%, var(--amber) 75%);
     color: var(--charcoal);
     text-decoration: none;
   }
   .event-sticker-link:hover {
     text-decoration: none;
+    filter: brightness(1.05);
   }
 
-  /* Text sits along the diagonal, rotated to follow the arc. */
+  /* Horizontal lines, each narrower than the arc is at that depth. */
   .event-sticker-text {
     position: absolute;
-    left: calc(var(--r) * 0.4);
-    top: calc(var(--r) * 0.4);
-    width: calc(var(--r) * 0.6);
-    transform: translate(-50%, -50%) rotate(-45deg);
+    left: calc(var(--r) * 0.08);
+    top: calc(var(--r) * 0.1);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: calc(var(--r) * 0.01);
-    text-align: center;
+    align-items: flex-start;
+    gap: calc(var(--r) * 0.02);
   }
   .event-sticker-kicker {
-    font-size: calc(var(--r) * 0.055);
+    font-size: calc(var(--r) * 0.07);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .event-sticker-title {
-    font-size: calc(var(--r) * 0.095);
+    max-width: 6.2em;
+    font-size: calc(var(--r) * 0.13);
     font-weight: 800;
-    line-height: 1.1;
+    line-height: 1.05;
   }
   .event-sticker-date {
-    margin-top: calc(var(--r) * 0.02);
-    padding: 0.05em 0.7em;
+    padding: 0.1em 0.7em;
     border-radius: 999px;
     background: var(--charcoal);
     color: #fff;
-    font-size: calc(var(--r) * 0.07);
+    font-size: calc(var(--r) * 0.09);
     font-weight: 700;
   }
 
   .event-sticker-close {
     position: absolute;
-    left: calc(var(--r) * 0.88 - 1.1rem);
-    top: calc(var(--r) * 0.26 - 1.1rem);
-    width: 2.2rem;
-    height: 2.2rem;
+    left: calc(var(--r) * 0.84 - 0.8rem);
+    top: calc(var(--r) * 0.3 - 0.8rem);
+    width: 1.6rem;
+    height: 1.6rem;
     padding: 0;
-    border: 3px solid #fff;
+    border: 2px solid #fff;
     border-radius: 50%;
     background: var(--charcoal);
     color: #fff;
-    font-size: 1.4rem;
+    font-size: 1.1rem;
     line-height: 1;
     cursor: pointer;
-  }
-
-  /* Keep clear of the nav links, which start further left on narrow desktops. */
-  @media (max-width: 1000px) {
-    .event-sticker {
-      --r: 27vw;
-    }
-  }
-  /* Hamburger menu from here down, so the whole corner is free. */
-  @media (max-width: 720px) {
-    .event-sticker {
-      --r: 80vw;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .event-sticker {
-      transition: none;
-    }
   }
 </style>

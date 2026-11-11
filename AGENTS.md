@@ -190,8 +190,10 @@ to `/events`. It is absolutely positioned, so it scrolls away with the page,
 and it hides itself while the mobile menu is open. It is hidden on `/events`
 itself, can be dismissed for the session, and drops out of the build after
 `hideAfter`. Edit the `sticker` constant for each event. The nightly Pages
-build is what removes it after the date. Its size is the `--r` variable,
-which is capped on narrow desktops so it stays clear of the nav links.
+build is what removes it after the date. Its radius `--r` is computed so the
+arc stops just short of the first heading (`headingTop`: 204px for the home
+hero, 121px for page headers, measured from the top of the page). If the hero
+or page-header layout changes, update those numbers.
 
 ## Deployment
 
