@@ -7,6 +7,7 @@ const { currentPath = "/" } = Astro.props;
 // Update these for each event. The site rebuilds nightly, so the sticker
 // disappears the first night after `hideAfter`.
 const sticker = {
+  id: "lip-balm-2026",
   href: "/events",
   kicker: "Upcoming",
   title: "Lip balm workshop",
@@ -23,33 +24,34 @@ const headingTop = path === "/" ? 204 : 121;
 ---
 
 {show && (
-  <div class="event-sticker" id="event-sticker" style={`--heading-top: ${headingTop}px`}>
-    <a class="event-sticker-link" href={sticker.href}>
-      <span class="event-sticker-text">
-        <span class="event-sticker-kicker">{sticker.kicker}</span>
-        <span class="event-sticker-title">{sticker.title}</span>
-        <span class="event-sticker-date">{sticker.date}</span>
-      </span>
-    </a>
-    <button class="event-sticker-close" id="event-sticker-close" type="button" aria-label="Hide event notice">
-      &times;
-    </button>
-  </div>
-
-  <script is:inline>
-    (function () {
-      var el = document.getElementById("event-sticker");
+  <>
+    {/* Runs before the sticker is parsed so a dismissed sticker never paints. */}
+    <script is:inline define:vars={{ key: `tbc-sticker-${sticker.id}` }}>
       try {
-        if (sessionStorage.getItem("tbc-sticker-hidden")) el.hidden = true;
+        if (sessionStorage.getItem(key)) document.documentElement.classList.add("sticker-dismissed");
       } catch (e) {}
+    </script>
+    <div class="event-sticker" id="event-sticker" style={`--heading-top: ${headingTop}px`}>
+      <a class="event-sticker-link" href={sticker.href}>
+        <span class="event-sticker-text">
+          <span class="event-sticker-kicker">{sticker.kicker}</span>
+          <span class="event-sticker-title">{sticker.title}</span>
+          <span class="event-sticker-date">{sticker.date}</span>
+        </span>
+      </a>
+      <button class="event-sticker-close" id="event-sticker-close" type="button" aria-label="Hide event notice">
+        &times;
+      </button>
+    </div>
+    <script is:inline define:vars={{ key: `tbc-sticker-${sticker.id}` }}>
       document.getElementById("event-sticker-close").addEventListener("click", function () {
-        el.hidden = true;
+        document.documentElement.classList.add("sticker-dismissed");
         try {
-          sessionStorage.setItem("tbc-sticker-hidden", "1");
+          sessionStorage.setItem(key, "1");
         } catch (e) {}
       });
-    })();
-  </script>
+    </script>
+  </>
 )}
 
 <style>
@@ -73,7 +75,7 @@ const headingTop = path === "/" ? 204 : 121;
       --r: min(18rem, calc(hypot(var(--content-left), var(--heading-top)) - 10px));
     }
   }
-  .event-sticker[hidden] {
+  :global(html.sticker-dismissed) .event-sticker {
     display: none;
   }
   /* The mobile menu opens full width under the sticker. */
