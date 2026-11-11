@@ -4,57 +4,48 @@ import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 const currentPath = "/events";
 
-const EVENT_DATE = "Saturday, October 3";
-const EVENT_TIME = "10 am \u2013 1 pm or 1 pm \u2013 4 pm";
-
-// Hardcoded while the Google Maps saved list (kcH4Wyo-TLaHMs4gCsL3NQ) is out
-// of date. To read from the list again, swap this for
-// `await fetchGoogleList(id)` from src/lib/google-list.mjs.
-// Coordinates are from OpenStreetMap Nominatim.
-const list = {
-  title: "Fall Honey Pop Up Sale 2026",
-  places: [
-    { name: "910 Carlaw Ave", slot: "am", note: "Playter Estates-Danforth", lat: 43.68187, lng: -79.34888 },
-    { name: "97 Monarch Park Ave", slot: "am", note: "Greenwood-Coxwell", lat: 43.68182, lng: -79.32659 },
-    { name: "91 Barrymore Rd", slot: "pm", note: "Scarborough (Bendale)", lat: 43.75309, lng: -79.25065 },
-    { name: "7 Yarmouth Rd", slot: "pm", note: "near Dupont and Christie", lat: 43.67021, lng: -79.41913 },
-  ],
+const event = {
+  title: "Beeswax Lip and Hand Balm Workshop",
+  dateLabel: "Saturday, December 5, 2026",
+  timeLabel: "2 pm \u2013 4 pm",
+  venue: "Carrot Common",
+  address: "348 Danforth Ave, Room 212",
+  directions: "The door for Room 212 is on the west side of Book City.",
+  price: "$25 per person",
+  takeHome: "Two lip balms and one hand balm",
+  registerUrl: "https://bit.ly/4iwKLMg",
+  email: "torontobeekeeperscollective@gmail.com",
 };
 
-const slots = [
-  { id: "am", label: "Morning", time: "10 am \u2013 1 pm" },
-  { id: "pm", label: "Afternoon", time: "1 pm \u2013 4 pm" },
-];
+const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+  "Carrot Common, 348 Danforth Ave, Toronto, ON"
+)}`;
 
-// Numbered in slot order so pins 1..n read morning first, then afternoon.
-const places = slots
-  .flatMap((s) => list.places.filter((p) => p.slot === s.id).map((p) => ({ ...p, time: s.time })))
-  .map((p, i) => ({
-    ...p,
-    num: i + 1,
-    directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-      `${p.name}, Toronto, ON`
-    )}`,
-  }));
+// 2 pm to 4 pm EST on Dec 5, 2026 (UTC-5)
+const calendarUrl =
+  "https://calendar.google.com/calendar/render?" +
+  new URLSearchParams({
+    action: "TEMPLATE",
+    text: event.title,
+    dates: "20261205T190000Z/20261205T210000Z",
+    location: `${event.venue}, ${event.address}, Toronto, ON`,
+    details: `${event.directions} Register: ${event.registerUrl}`,
+  }).toString();
 
-const groups = slots
-  .map((s) => ({ ...s, places: places.filter((p) => p.slot === s.id) }))
-  .filter((g) => g.places.length > 0);
+const posterAlt =
+  "Poster for the Toronto Beekeepers Collective beeswax lip and hand balm workshop. " +
+  "Great for gifts! Take home two lip balms and one hand balm. " +
+  "Carrot Common, 348 Danforth, Room 212. Saturday, December 5, 2026, 2 pm to 4 pm. " +
+  "$25 per person. Register by QR code or email torontobeekeeperscollective@gmail.com.";
 ---
 
 <Base
   title="Events"
-  description={`${list.title} — ${EVENT_DATE}, ${EVENT_TIME}. $10 per 250 ml jar, harvested from hives at Black Creek Community Farm & Downsview Park. Find a pop-up near you at one of ${places.length} locations across Toronto.`}
+  description={`${event.title}: ${event.dateLabel}, ${event.timeLabel} at ${event.venue}, ${event.address}. ${event.price}. Take home two lip balms and one hand balm.`}
+  ogImage="https://torontobeekeeping.ca/lip-balm-workshop-og.jpg"
 >
   <Nav slot="nav" currentPath={currentPath} />
 
-  <!-- Poster fonts (page-local; Base already preconnects to Google Fonts) -->
-  <link
-    rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,900&family=Pacifico&display=swap"
-  />
-
-  <!-- Page header -->
   <div class="page-header">
     <div class="container page-header-content">
       <h1>Events</h1>
@@ -63,458 +54,173 @@ const groups = slots
 
   <section class="section">
     <div class="container">
-      <!-- Poster-style event banner (art ripped from the print flyer) -->
-      <div class="poster">
-        <div class="poster-hero">
-          <p class="poster-kicker">Something sweet is popping up across&nbsp;the&nbsp;City!</p>
-          <div class="poster-art">
-            <img src="/honey-stand.png" alt="" width="760" height="688" loading="eager" />
-          </div>
-          <h2 class="poster-title">
-            <span class="poster-script" aria-hidden="true">Fall</span>
-            Honey Pop&nbsp;Up Sale
-          </h2>
-          <p class="poster-date">{EVENT_DATE}</p>
-          <p class="poster-time">{EVENT_TIME}</p>
-          <p class="poster-fineprint">* times vary by location (see below) &middot; or until sold out</p>
-        </div>
-        <div class="poster-details">
-          <p class="poster-price">$10 per 250 ml jar</p>
-          <p class="poster-source">
-            Harvested from hives at<br />
-            <strong>Black Creek Community Farm &amp; Downsview Park</strong>
+      <div class="workshop">
+        <a class="workshop-poster" href="/lip-balm-workshop-poster.webp" aria-label="Open the poster full size">
+          <img
+            src="/lip-balm-workshop-poster.webp"
+            alt={posterAlt}
+            width="1122"
+            height="1402"
+            loading="eager"
+          />
+        </a>
+
+        <div class="workshop-info">
+          <p class="workshop-kicker">Upcoming workshop</p>
+          <h2>{event.title}</h2>
+          <p class="workshop-lede">
+            Make beeswax balms with the club and take them home. Great for gifts.
           </p>
-          <p class="poster-proceeds">
-            Proceeds support our non-profit organization and the care of our bees
+
+          <dl class="workshop-facts">
+            <div>
+              <dt>When</dt>
+              <dd>
+                <strong>{event.dateLabel}</strong><br />
+                {event.timeLabel}
+              </dd>
+            </div>
+            <div>
+              <dt>Where</dt>
+              <dd>
+                <strong>{event.venue}</strong><br />
+                {event.address}<br />
+                <span class="workshop-note">{event.directions}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Cost</dt>
+              <dd><strong>{event.price}</strong></dd>
+            </div>
+            <div>
+              <dt>You take home</dt>
+              <dd>{event.takeHome}</dd>
+            </div>
+          </dl>
+
+          <div class="workshop-actions">
+            <a class="btn btn-primary" href={event.registerUrl} target="_blank" rel="noopener">
+              Register
+            </a>
+            <a class="btn btn-outline-dark" href={calendarUrl} target="_blank" rel="noopener">
+              Add to calendar
+            </a>
+            <a class="btn btn-outline-dark" href={mapsUrl} target="_blank" rel="noopener">
+              Get directions
+            </a>
+          </div>
+
+          <p class="workshop-email">
+            Prefer email? Write to
+            <a href={`mailto:${event.email}?subject=${encodeURIComponent("Lip and hand balm workshop")}`}>{event.email}</a>.
           </p>
         </div>
       </div>
-
-      <p class="event-intro">
-        Members are popping up honey stands on driveways across the city —
-        find the one closest to you.
-      </p>
-
-      <ul class="slot-legend" aria-label="Map key">
-        {groups.map((g) => (
-          <li class={`slot-${g.id}`}>
-            <span class="slot-dot" aria-hidden="true"></span>
-            <strong>{g.label}</strong> {g.time}
-          </li>
-        ))}
-      </ul>
-
-      <div id="event-map" aria-label={`Map of ${list.title} locations`}></div>
-
-      {groups.map((g) => (
-        <section class={`slot-group slot-${g.id}`} aria-labelledby={`slot-${g.id}-heading`}>
-          <h2 class="slot-heading" id={`slot-${g.id}-heading`}>
-            <span class="slot-label">{g.label}</span>
-            <span class="slot-time">{g.time}</span>
-          </h2>
-          <div class="card-grid location-grid">
-            {g.places.map((p) => (
-              <div class="card location-card">
-                <div class="location-card-head">
-                  <span class="location-num">{p.num}</span>
-                  <h3>{p.name}</h3>
-                </div>
-                <p class="location-time">{p.time}</p>
-                {p.note && <p class="location-note">{p.note}</p>}
-                <a
-                  class="btn btn-outline-dark location-directions"
-                  href={p.directionsUrl}
-                  target="_blank"
-                  rel="noopener"
-                >
-                  Get directions
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
     </div>
   </section>
-
-  <!-- Leaflet (map library) — page-local, loaded from CDN -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <script
-    is:inline
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""></script>
-
-  <script is:inline define:vars={{ places }}>
-  /* global L */
-  const map = L.map("event-map", { scrollWheelZoom: false });
-
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
-
-  const markers = places.map((p) => {
-    const icon = L.divIcon({
-      className: "tbc-pin-wrap",
-      html: `<div class="tbc-pin slot-${p.slot}"><span>${p.num}</span></div>`,
-      iconSize: [34, 44],
-      iconAnchor: [17, 44],
-      popupAnchor: [0, -40],
-    });
-    return L.marker([p.lat, p.lng], { icon, title: p.name })
-      .addTo(map)
-      .bindPopup(
-        `<strong>${p.name}</strong><br>` +
-          `<span class="tbc-popup-time">${p.time}</span><br>` +
-          (p.note ? `${p.note}<br>` : "") +
-          `<a href="${p.directionsUrl}" target="_blank" rel="noopener">Open in Google Maps</a>`
-      );
-  });
-
-  map.fitBounds(L.featureGroup(markers).getBounds(), { padding: [40, 40] });
-  </script>
 
   <Footer slot="footer" />
 </Base>
 
-<!--
-  Global (not scoped) because Leaflet creates its DOM at runtime, and Astro's
-  scoped styles never reach JS-created elements (see AGENTS.md gotchas).
--->
-<style is:global>
-  #event-map {
-    height: 460px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    margin: 1.5rem 0 2rem;
-    /* Leaflet panes use high z-indexes; keep the map under the sticky nav */
-    isolation: isolate;
-    z-index: 0;
-  }
-
-  /* Time-slot colours, shared by map pins, legend, headings and cards.
-     Orange vs blue stays distinguishable for most colour-blind visitors. */
-  .slot-am {
-    --slot: var(--amber);
-    --slot-ink: var(--charcoal);
-  }
-  .slot-pm {
-    --slot: #2f6f8f;
-    --slot-ink: #fff;
-  }
-
-  .tbc-pin {
-    width: 34px;
-    height: 34px;
-    background: var(--slot, var(--amber));
-    border: 2px solid var(--charcoal);
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  }
-  .tbc-pin span {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    transform: rotate(45deg);
-    color: var(--slot-ink, var(--charcoal));
-    font-weight: 700;
-    font-size: 0.95rem;
-  }
-
-  #event-map .leaflet-popup-content {
-    font-family: inherit;
-    font-size: 0.9rem;
-    line-height: 1.45;
-  }
-  #event-map .tbc-popup-time {
-    font-weight: 700;
-  }
-  #event-map .leaflet-popup-content a {
-    color: var(--charcoal);
-    font-weight: 600;
-  }
-
-  @media (max-width: 640px) {
-    #event-map {
-      height: 340px;
-    }
-  }
-</style>
-
 <style>
-  /* ── Poster palette (sampled from the print flyer) ────────────────── */
-  .poster {
-    --poster-gold: #dfba4e;
-    --poster-cream: #f7f1de;
-    --poster-brown: #6b4a33;
-    --poster-maroon: #a03b27;
-    --poster-berry: #c2456d;
-    --poster-hex: rgba(255, 255, 255, 0.28);
-
-    max-width: 620px;
-    margin: 0 auto;
-    border-radius: 24px;
-    overflow: hidden;
-    box-shadow: var(--shadow);
-    text-align: center;
+  .workshop {
+    display: grid;
+    grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
   }
 
-  /* Gold arch with faint honeycomb outlines in the corners */
-  .poster-hero {
-    position: relative;
-    isolation: isolate;
-    background: var(--poster-gold);
-    padding: 2.25rem 1.25rem 2.75rem;
-    border-radius: 0 0 50% 50% / 0 0 56px 56px;
-    overflow: hidden;
-  }
-  .poster-hero::before,
-  .poster-hero::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    width: 200px;
-    height: 240px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='104' height='120' viewBox='0 0 104 120'%3E%3Cpath d='M52 6 98 33v54L52 114 6 87V33z' fill='none' stroke='white' stroke-opacity='0.28' stroke-width='6'/%3E%3C/svg%3E");
-    background-size: 104px 120px;
-    pointer-events: none;
-  }
-  .poster-hero::before {
-    top: -30px;
-    right: -30px;
-  }
-  .poster-hero::after {
-    bottom: -40px;
-    left: -30px;
-  }
-
-  /* Bee-stand illustration from the flyer, in a soft cream circle */
-  .poster-art {
-    width: min(280px, 62%);
-    aspect-ratio: 1;
-    margin: 0 auto 1.25rem;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    background: radial-gradient(circle at 50% 40%, #fdf7e3 0%, #f7edcb 100%);
-    border-radius: 50%;
-  }
-  .poster-art img {
-    width: 88%;
-    height: auto;
-    filter: drop-shadow(0 4px 10px rgba(107, 74, 51, 0.25));
-  }
-
-  .poster-kicker {
-    color: var(--poster-maroon);
-    font-weight: 700;
-    font-size: 1.25rem;
-    margin: 0 0 1.25rem;
-  }
-
-  .poster-title {
-    position: relative;
-    display: inline-block;
-    font-family: "Fraunces", Georgia, serif;
-    font-weight: 900;
-    font-size: clamp(2.2rem, 6vw, 3.4rem);
-    line-height: 1.05;
-    color: var(--poster-brown);
-    margin: 0.5rem 0 0.75rem;
-    max-width: 14ch;
-  }
-
-  .poster-script {
-    position: absolute;
-    top: -1.1em;
-    left: -0.4em;
-    font-family: "Pacifico", cursive;
-    font-weight: 400;
-    font-size: 0.55em;
-    color: #e8963e;
-    transform: rotate(-8deg);
-    text-shadow:
-      2px 2px 0 #fff,
-      -1px 1px 0 #fff;
-  }
-
-  .poster-date {
-    font-family: "Fraunces", Georgia, serif;
-    font-weight: 900;
-    font-size: clamp(1.3rem, 3.5vw, 1.8rem);
-    color: var(--poster-brown);
-    margin: 0;
-  }
-
-  .poster-time {
-    font-family: "Fraunces", Georgia, serif;
-    font-weight: 900;
-    font-size: clamp(1.15rem, 3vw, 1.5rem);
-    color: var(--poster-berry);
-    margin: 0.4rem 0 0;
-  }
-
-  .poster-fineprint {
-    color: var(--poster-berry);
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin: 0.35rem 0 0;
-  }
-
-  /* Cream strip under the arch, like the bottom of the flyer */
-  .poster-details {
-    background: var(--poster-cream);
-    padding: 1.75rem 1.5rem 1.5rem;
-  }
-  .poster-price {
-    font-weight: 700;
-    font-size: 1.15rem;
-    color: var(--poster-brown);
-    margin: 0 0 0.5rem;
-  }
-  .poster-source {
-    color: var(--poster-maroon);
-    font-weight: 600;
-    line-height: 1.5;
-    margin: 0 0 0.5rem;
-  }
-  .poster-proceeds {
-    color: var(--poster-maroon);
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  /* ── Intro copy ───────────────────────────────────────────────────── */
-  .event-intro {
-    max-width: 34rem;
-    margin: 2rem auto 0;
-    text-align: center;
-    font-size: 1.05rem;
-  }
-
-  @media (max-width: 640px) {
-    .poster-hero {
-      padding: 1.75rem 1rem 2.25rem;
-      border-radius: 0 0 50% 50% / 0 0 36px 36px;
-    }
-    .poster-hero::before,
-    .poster-hero::after {
-      width: 120px;
-      height: 150px;
-      background-size: 68px 78px;
-    }
-    .poster-kicker {
-      font-size: 1.05rem;
-      margin-bottom: 1rem;
-    }
-    .poster-art {
-      width: min(220px, 68%);
-      margin-bottom: 1rem;
-    }
-    .poster-details {
-      padding: 1.25rem 1rem;
-    }
-  }
-
-  /* ── Time-slot legend and groups ──────────────────────────────────── */
-  .slot-legend {
-    list-style: none;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem 1.5rem;
-    margin: 1.5rem 0 0;
-    padding: 0;
-  }
-  .slot-legend li {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-  .slot-dot {
-    width: 0.9rem;
-    height: 0.9rem;
-    border-radius: 50%;
-    background: var(--slot);
-    border: 2px solid var(--charcoal);
-  }
-
-  .slot-group {
-    margin-top: 2rem;
-  }
-  .slot-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem 0.75rem;
-    margin: 0 0 1rem;
-    padding: 0.6rem 1rem;
+  .workshop-poster {
+    display: block;
     border-radius: var(--radius);
-    background: var(--slot);
-    color: var(--slot-ink);
-    font-size: 1.35rem;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    line-height: 0;
   }
-  .slot-time {
+  .workshop-poster img {
+    width: 100%;
+    height: auto;
+  }
+
+  .workshop-kicker {
+    margin: 0 0 0.25rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--amber-dark);
+  }
+  .workshop-info h2 {
+    margin: 0 0 0.5rem;
+  }
+  .workshop-lede {
     font-size: 1.1rem;
-    font-weight: 600;
+    margin: 0 0 1.5rem;
   }
 
-  /* ── Location cards ───────────────────────────────────────────────── */
-  .location-card {
-    border-top: 5px solid var(--slot);
+  .workshop-facts {
+    margin: 0 0 1.75rem;
+    padding: 0;
+    display: grid;
+    gap: 0;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
   }
-
-  .location-time {
+  .workshop-facts > div {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .workshop-facts > div:first-child {
+    border-top: 0;
+  }
+  .workshop-facts dt {
     font-weight: 700;
-    margin-bottom: 0.25rem;
+    color: var(--amber-dark);
   }
-  .location-card-head {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.5rem;
-  }
-  .location-card-head h3 {
+  .workshop-facts dd {
     margin: 0;
+    line-height: 1.5;
   }
-
-  .location-num {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 50%;
-    background: var(--slot);
-    color: var(--slot-ink);
-    font-weight: 700;
-    font-size: 0.9rem;
-  }
-
-  .location-note {
+  .workshop-note {
     font-size: 0.92rem;
-    margin-bottom: 1rem;
+    color: var(--charcoal-mid);
   }
 
-  .location-directions {
-    margin-top: auto;
-  }
-
-  .location-card {
+  .workshop-actions {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .workshop-email {
+    margin: 1.25rem 0 0;
+    font-size: 0.95rem;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 820px) {
+    .workshop {
+      grid-template-columns: 1fr;
+      gap: 1.75rem;
+    }
+    .workshop-poster {
+      max-width: 26rem;
+      margin: 0 auto;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .workshop-facts > div {
+      grid-template-columns: 1fr;
+      gap: 0.15rem;
+    }
+    .workshop-actions .btn {
+      flex: 1 1 100%;
+      justify-content: center;
+    }
   }
 </style>
