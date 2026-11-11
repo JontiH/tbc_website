@@ -97,75 +97,26 @@ email sync doesn't wipe it out.
 
 ## Events page
 
-`/events` (`src/pages/events.astro`) is a public page for honey pop-up
-sales. It has two parts:
+`/events` (`src/pages/events.astro`) shows one upcoming event: the poster
+image (`public/lip-balm-workshop-poster.webp`, also used as the social
+share image via `public/lip-balm-workshop-og.jpg`) next to a details
+card. All copy lives in the `event` constant at the top of the file
+(title, date, venue, price, register URL, email). The Register link is the
+URL behind the poster's QR code (a Google Form via bit.ly). The "Add to
+calendar" link is built from the same constant, with the UTC times
+hardcoded in `calendarUrl`, so update both when the date changes.
 
-1. A poster-styled banner reproducing the print flyer in HTML/CSS. The
-   bee-stand illustration was ripped from the flyer PDF (`pdfimages`
-   extracts the image + soft-mask, then PIL merges them into an RGBA PNG,
-   quantizes, and saves to `public/honey-stand.png`, ~65 KB). Display
-   fonts (Fraunces 900, Pacifico) load page-locally from Google Fonts.
-   Palette is sampled from the flyer, not the site's amber theme.
-2. An interactive Leaflet + OpenStreetMap map of the sale locations, plus
-   a card per location. Leaflet 1.9.4 loads from unpkg CDN (CSS + JS with
-   SRI hashes) — no npm dependency. Map/pin/popup CSS is `is:global`
-   because Leaflet builds its DOM at runtime (see the Astro scoped-style
-   gotcha below).
+For the next event, replace the poster files, the `event` constant, the
+`posterAlt` text and the calendar times.
 
-### Where the location data comes from
-
-Locations are currently **hardcoded** in the `list` constant in
-`events.astro` (name, `slot`, neighbourhood note, lat/lng), because the Google Maps
-list below was out of date and can only be edited from the owner's
-Google account. Coordinates come from OpenStreetMap Nominatim. The
-flyer's QR code still points at the Google Maps list.
-
-To go back to the Google list, replace the constant with
-`await fetchGoogleList("kcH4Wyo-TLaHMs4gCsL3NQ")` (import it from
-`../lib/google-list.mjs`). That fetches the list at **build time**, and
-`google-list.mjs`:
-
-- Fetches `https://www.google.com/local/userlists/list/<id>`.
-- Google has no official API for saved lists, but the public page
-  server-renders all list data inside an `AF_initDataCallback({key:
-  'ds:0', ... data: [...]})` script blob. The parser extracts that blob
-  and reads: title `data[0][2]`, description `data[0][3]`, places
-  `data[0][5]` (each place: name `[1]`, note `[2]`, lat `[10]`, lng
-  `[11]`, city `[12]`).
-- This is an internal Google format that can change without notice. Every
-  extraction step validates and **throws** on anything unexpected, so a
-  format change fails the site build loudly (CI goes red, the live site
-  keeps the last good deploy) rather than silently publishing an empty
-  map.
-
-### Time slots
-
-Each place has `slot: "am"` or `"pm"`, matching an entry in the `slots`
-constant (label + time range). The page groups cards under a coloured
-heading per slot, numbers places in slot order (morning first), and
-colours map pins, the map legend, card borders and number badges by
-slot: amber for morning, blue (`#2f6f8f`) for afternoon. The colours are
-the `--slot` / `--slot-ink` custom properties on `.slot-am` / `.slot-pm`
-in the global style block, since the pins are Leaflet-created DOM. To
-add a slot, add it to `slots` and give it a `.slot-<id>` colour rule.
-Places from the Google list have no `slot`, so switching back to it
-means assigning slots some other way (for example, parsing the note).
-
-The date, timeslot summary, price, and hive-source copy are always
-written by hand in `events.astro` (constants near the top plus the
-poster markup). Edit those when the season/price changes.
-
-### Keeping it fresh
-
-`deploy-pages.yml` has a nightly `schedule` cron (`0 9 * * *`, ~4-5am
-Toronto) so that, when the page reads from the Google list, edits to the
-list appear within ~24h. It also rebuilds on any push to `main` and on
-manual `workflow_dispatch`.
+The previous honey pop-up page (Leaflet map, per-slot colours, locations
+list) is in git history. `src/lib/google-list.mjs` is kept for it and is
+currently unused.
 
 ### /popup short slug
 
-`public/_redirects` 301s `/popup` and `/popup/` → `/events` (Cloudflare
-Pages native redirects). Handy short URL for flyers / social / QR codes.
+`public/_redirects` 301s `/popup` and `/popup/` to `/events`. Handy short
+URL for flyers, social posts and QR codes.
 
 ## Caching
 
@@ -245,8 +196,7 @@ Every push to `main` triggers CI:
 
 - `.github/workflows/deploy-pages.yml`: rebuilds Astro and pushes to
   Cloudflare Pages. Skipped if only `worker/**` changed. Also runs nightly
-  on a `schedule` cron (`0 9 * * *`) to refresh the events page's
-  build-time data from the Google list (see the Events page section).
+  on a `schedule` cron (`0 9 * * *`).
 - `.github/workflows/deploy-worker.yml`: runs `wrangler deploy`. Skipped
   unless `worker/**` changed. Sets Google secrets on each deploy.
 - `.github/workflows/sync-access-policy.yml`: nightly at 05:00 UTC.
