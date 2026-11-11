@@ -48,25 +48,30 @@ const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sti
 )}
 
 <style>
-  /* Quarter circle pinned under the nav (70px bar + 3px border) at the left edge. */
+  /* Quarter circle in the top-left corner, over the nav. Absolute (not fixed)
+     so it scrolls away with the page instead of covering content. */
   .event-sticker {
-    --r: 10.5rem;
-    position: fixed;
-    top: 73px;
+    --r: min(40vw, 36rem);
+    position: absolute;
+    top: 0;
     left: 0;
-    z-index: 90;
+    z-index: 120;
     width: var(--r);
     height: var(--r);
     transform-origin: top left;
     transition: transform 0.2s ease;
-    filter: drop-shadow(0 4px 8px rgba(43, 43, 43, 0.3));
+    filter: drop-shadow(0 4px 10px rgba(43, 43, 43, 0.3));
   }
   .event-sticker[hidden] {
     display: none;
   }
   .event-sticker:hover,
   .event-sticker:focus-within {
-    transform: scale(1.05);
+    transform: scale(1.03);
+  }
+  /* The mobile menu opens full width under the sticker. */
+  :global(body:has(.nav-links.open)) .event-sticker {
+    display: none;
   }
 
   .event-sticker-link {
@@ -74,8 +79,8 @@ const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sti
     inset: 0;
     display: block;
     border-radius: 0 0 var(--r) 0;
-    border-right: 4px solid #fff;
-    border-bottom: 4px solid #fff;
+    border-right: 6px solid #fff;
+    border-bottom: 6px solid #fff;
     background: radial-gradient(circle at 0 0, #ffc857 0%, var(--amber) 75%);
     color: var(--charcoal);
     text-decoration: none;
@@ -94,55 +99,56 @@ const show = currentPath.replace(/\/$/, "") !== sticker.href && new Date() < sti
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.1rem;
+    gap: calc(var(--r) * 0.01);
     text-align: center;
   }
   .event-sticker-kicker {
-    font-size: 0.6rem;
+    font-size: calc(var(--r) * 0.055);
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .event-sticker-title {
-    font-size: 1.05rem;
+    font-size: calc(var(--r) * 0.095);
     font-weight: 800;
     line-height: 1.1;
   }
   .event-sticker-date {
-    margin-top: 0.2rem;
-    padding: 0.05rem 0.6rem;
+    margin-top: calc(var(--r) * 0.02);
+    padding: 0.05em 0.7em;
     border-radius: 999px;
     background: var(--charcoal);
     color: #fff;
-    font-size: 0.8rem;
+    font-size: calc(var(--r) * 0.07);
     font-weight: 700;
   }
 
   .event-sticker-close {
     position: absolute;
-    left: calc(var(--r) * 0.88 - 0.75rem);
-    top: calc(var(--r) * 0.26 - 0.75rem);
-    width: 1.5rem;
-    height: 1.5rem;
+    left: calc(var(--r) * 0.88 - 1.1rem);
+    top: calc(var(--r) * 0.26 - 1.1rem);
+    width: 2.2rem;
+    height: 2.2rem;
     padding: 0;
-    border: 2px solid #fff;
+    border: 3px solid #fff;
     border-radius: 50%;
     background: var(--charcoal);
     color: #fff;
-    font-size: 1rem;
+    font-size: 1.4rem;
     line-height: 1;
     cursor: pointer;
   }
 
-  @media (max-width: 640px) {
+  /* Keep clear of the nav links, which start further left on narrow desktops. */
+  @media (max-width: 1000px) {
     .event-sticker {
-      --r: 8.5rem;
+      --r: 27vw;
     }
-    .event-sticker-title {
-      font-size: 0.9rem;
-    }
-    .event-sticker-date {
-      font-size: 0.7rem;
+  }
+  /* Hamburger menu from here down, so the whole corner is free. */
+  @media (max-width: 720px) {
+    .event-sticker {
+      --r: 80vw;
     }
   }
 

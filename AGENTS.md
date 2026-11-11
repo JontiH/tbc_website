@@ -184,11 +184,14 @@ service account credentials are Worker secrets.
 
 ## Event sticker
 
-`src/components/EventSticker.astro` (rendered from `Base.astro`) is a fixed
-quarter circle under the nav at the left edge of every page linking to `/events`. It is
-hidden on `/events` itself, can be dismissed for the session, and drops out
-of the build after `hideAfter`. Edit the `sticker` constant for each event.
-The nightly Pages build is what removes it after the date.
+`src/components/EventSticker.astro` (rendered from `Base.astro`) is a large
+quarter circle in the top-left corner of every page, over the nav, linking
+to `/events`. It is absolutely positioned, so it scrolls away with the page,
+and it hides itself while the mobile menu is open. It is hidden on `/events`
+itself, can be dismissed for the session, and drops out of the build after
+`hideAfter`. Edit the `sticker` constant for each event. The nightly Pages
+build is what removes it after the date. Its size is the `--r` variable,
+which is capped on narrow desktops so it stays clear of the nav links.
 
 ## Deployment
 
