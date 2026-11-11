@@ -231,6 +231,14 @@ service account credentials are Worker secrets.
 | `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET` | Service token for curl scripts that need to bypass Access. |
 | `CLOUDFLARE_API_TOKEN` | For ad-hoc Cloudflare API calls. Needs Workers Scripts/Routes Edit, Pages Edit, Account Settings Read, Zone DNS Edit/Zone Read, Access Apps & Policies Edit. |
 
+## Event sticker
+
+`src/components/EventSticker.astro` (rendered from `Base.astro`) is a fixed
+round badge at the top left of every page linking to `/events`. It is
+hidden on `/events` itself, can be dismissed for the session, and drops out
+of the build after `hideAfter`. Edit the `sticker` constant for each event.
+The nightly Pages build is what removes it after the date.
+
 ## Deployment
 
 Every push to `main` triggers CI:

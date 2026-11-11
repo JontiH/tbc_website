@@ -1,4 +1,6 @@
 ---
+import EventSticker from "../components/EventSticker.astro";
+
 export interface Props {
   title: string;
   description?: string;
@@ -48,6 +50,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? "https://torontob
       <slot />
     </main>
     <slot name="footer" />
+    <EventSticker currentPath={Astro.url.pathname} />
   </body>
 </html>
 
