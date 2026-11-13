@@ -85,10 +85,7 @@ jobs:
           TO_REMOVE=$(comm -23 <(echo "$CURRENT_EMAILS") <(echo "$DESIRED_EMAILS"))
 
           echo "Needs update."
-          echo "  add ($([ -z "$TO_ADD" ] && echo 0 || echo "$TO_ADD" | wc -l)):"
-          [ -n "$TO_ADD" ] && echo "$TO_ADD" | sed 's/^/    + /'
-          echo "  remove ($([ -z "$TO_REMOVE" ] && echo 0 || echo "$TO_REMOVE" | wc -l)):"
-          [ -n "$TO_REMOVE" ] && echo "$TO_REMOVE" | sed 's/^/    - /'
+          echo "  add: $(echo "$TO_ADD" | grep -c . || true), remove: $(echo "$TO_REMOVE" | grep -c . || true)"
 
           PAYLOAD=$(DESIRED_INCLUDE="$DESIRED_INCLUDE" python3 -c '
           import json, os
