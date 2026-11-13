@@ -226,7 +226,15 @@ Every push to `main` triggers CI:
 - `.github/workflows/sync-access-policy.yml`: nightly at 05:00 UTC.
   Fetches `/api/members` with the service token, diffs the email list
   against the current Access policy, and PUTs an update if they differ.
-  Refuses to push an empty list.
+  Refuses to push an empty list. A second step frees the Zero Trust seats
+  of anyone not on the list (the free plan has 50 seats). Logs show counts
+  only, never emails. GitHub turns off scheduled workflows after 60 days
+  without repo activity; if this one shows `disabled_inactivity`, re-enable
+  it with `gh workflow enable sync-access-policy.yml`.
+
+Zero Trust also removes the seat of anyone who hasn't logged in for 3
+months (`user_seat_expiration_inactive_time = 2190h` on the organization).
+They get a seat back on their next login.
 
 The Pages project is `tbc-website`, custom domain `torontobeekeeping.ca`,
 build command `npm run build`, no build-time env vars needed (Astro uses
