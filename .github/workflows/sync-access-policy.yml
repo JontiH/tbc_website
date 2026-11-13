@@ -53,6 +53,7 @@ jobs:
             echo "ERROR: refusing to push an empty member list."
             exit 1
           fi
+          echo "$DESIRED_EMAILS" > "$RUNNER_TEMP/members.txt"
 
           DESIRED_INCLUDE=$(echo "$DESIRED_EMAILS" | python3 -c '
           import json, sys
@@ -115,3 +116,45 @@ jobs:
 
           echo
           echo "Sync complete."
+
+      # The free Zero Trust plan has 50 seats, and anyone who has ever logged
+      # in keeps one until removed. Removing a seat doesn't block login; the
+      # policy above does that. Prints counts only because Actions logs on a
+      # public repo are public.
+      - name: Free seats held by people no longer on the member list
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request
+
+          members = {l.strip() for l in open(os.path.join(os.environ["RUNNER_TEMP"], "members.txt")) if l.strip()}
+          if not members:
+              sys.exit("ERROR: empty member list; not touching seats.")
+
+          def call(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CF_ACCOUNT']}/{path}",
+                  method=method,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers={"Authorization": f"Bearer {os.environ['CF_TOKEN']}", "Content-Type": "application/json"},
+              )
+              with urllib.request.urlopen(req) as r:
+                  d = json.load(r)
+              if not d.get("success"):
+                  sys.exit(f"ERROR: {method} {path} failed: {d.get('errors')}")
+              return d
+
+          users, page = [], 1
+          while True:
+              d = call("GET", f"access/users?per_page=100&page={page}")
+              users += d["result"]
+              if page >= d["result_info"]["total_pages"]:
+                  break
+              page += 1
+
+          seated = [u for u in users if u.get("access_seat") or u.get("gateway_seat")]
+          stale = [u for u in seated if u["email"].strip().lower() not in members]
+          print(f"{len(seated)} seats in use, {len(stale)} held by people not on the member list.")
+          if stale:
+              call("PATCH", "access/seats", [{"seat_uid": u["seat_uid"], "access_seat": False, "gateway_seat": False} for u in stale])
+              print(f"Freed {len(stale)} seats.")
+          EOF
