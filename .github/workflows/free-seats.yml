@@ -1,0 +1,78 @@
+name: Free Zero Trust seats
+
+# Manual only: Actions > Free Zero Trust seats > Run workflow. Use it when
+# logins fail because all 50 free seats are taken. Freeing a seat doesn't
+# log anyone out or block them; they take a seat again on their next login.
+
+on:
+  workflow_dispatch:
+    inputs:
+      inactive_days:
+        description: "Free seats of people who haven't logged in for this many days (0 frees every seat)"
+        type: number
+        default: 7
+      dry_run:
+        description: "Only report what would be freed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  free-seats:
+    runs-on: ubuntu-latest
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: "7679249973b3ca7cd658c198c69e1e5e"
+      INACTIVE_DAYS: ${{ inputs.inactive_days }}
+      DRY_RUN: ${{ inputs.dry_run }}
+    steps:
+      - name: Free seats
+        # Counts only: Actions logs on a public repo are public.
+        run: |
+          python3 - <<'EOF'
+          import datetime, json, os, sys, urllib.request
+
+          days = float(os.environ["INACTIVE_DAYS"])
+          if days < 0:
+              sys.exit("ERROR: inactive_days can't be negative.")
+          dry = os.environ["DRY_RUN"] == "true"
+
+          def call(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.cloudflare.com/client/v4/accounts/{os.environ['CF_ACCOUNT']}/{path}",
+                  method=method,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers={"Authorization": f"Bearer {os.environ['CF_TOKEN']}", "Content-Type": "application/json"},
+              )
+              with urllib.request.urlopen(req) as r:
+                  d = json.load(r)
+              if not d.get("success"):
+                  sys.exit(f"ERROR: {method} {path} failed: {d.get('errors')}")
+              return d
+
+          users, page = [], 1
+          while True:
+              d = call("GET", f"access/users?per_page=100&page={page}")
+              users += d["result"]
+              if page >= d["result_info"]["total_pages"]:
+                  break
+              page += 1
+
+          now = datetime.datetime.now(datetime.timezone.utc)
+          def idle_days(u):
+              t = u.get("last_successful_login")
+              if not t:
+                  return float("inf")
+              return (now - datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))).total_seconds() / 86400
+
+          seated = [u for u in users if u.get("access_seat") or u.get("gateway_seat")]
+          free = [u for u in seated if idle_days(u) >= days]
+          print(f"{len(seated)} of 50 seats in use; {len(free)} idle for {days:g}+ days.")
+          if dry:
+              print("Dry run: nothing changed.")
+          elif free:
+              call("PATCH", "access/seats", [{"seat_uid": u["seat_uid"], "access_seat": False, "gateway_seat": False} for u in free])
+              print(f"Freed {len(free)} seats; {len(seated) - len(free)} remain.")
+          EOF
