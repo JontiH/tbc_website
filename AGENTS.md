@@ -232,9 +232,9 @@ Every push to `main` triggers CI:
   without repo activity; if this one shows `disabled_inactivity`, re-enable
   it with `gh workflow enable sync-access-policy.yml`.
 
-Zero Trust also removes the seat of anyone who hasn't logged in for 3
-months (`user_seat_expiration_inactive_time = 2190h` on the organization).
-They get a seat back on their next login.
+Zero Trust also removes the seat of anyone who hasn't logged in for a
+month (`user_seat_expiration_inactive_time = 730h` on the organization, the
+minimum allowed). They get a seat back on their next login.
 
 The Pages project is `tbc-website`, custom domain `torontobeekeeping.ca`,
 build command `npm run build`, no build-time env vars needed (Astro uses
