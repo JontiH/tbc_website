@@ -236,6 +236,11 @@ Zero Trust also removes the seat of anyone who hasn't logged in for a
 month (`user_seat_expiration_inactive_time = 730h` on the organization, the
 minimum allowed). They get a seat back on their next login.
 
+If logins fail because all 50 seats are taken, run
+`.github/workflows/free-seats.yml` from the Actions tab. It frees seats
+idle for at least the given number of days (0 frees all of them) and has
+a dry-run option.
+
 The Pages project is `tbc-website`, custom domain `torontobeekeeping.ca`,
 build command `npm run build`, no build-time env vars needed (Astro uses
 relative `/api/...` paths).
